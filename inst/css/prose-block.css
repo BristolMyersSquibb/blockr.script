@@ -1,0 +1,170 @@
+/* blockr.script prose block: text with inline R, edited as it reads.
+   Tokens and components from blockr.ui (design system): the text is a field,
+   the code field is a Blockr.Input field, its completions the field
+   dropdown, the code on hover the design system's tooltip. */
+
+.blockr-prose {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* ---- the text: a field ----------------------------------------------------- */
+
+.blockr-prose-editor {
+  min-height: 42px;
+  box-sizing: border-box;
+  padding: 10px 14px;
+  border: 1px solid var(--blockr-color-border-default, #e5e7eb);
+  border-radius: var(--blockr-radius-lg, 8px);
+  background: var(--blockr-color-bg-field, #f9fafb);
+  font: inherit;
+  font-size: var(--blockr-font-size-base, 0.875rem);
+  color: var(--blockr-color-text-default, #111827);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.blockr-prose-editor:focus-within {
+  border-color: var(--blockr-color-border-accent, #2563eb);
+  box-shadow: var(--blockr-focus-ring, 0 0 0 3px rgba(37, 99, 235, 0.12));
+}
+
+.blockr-prose-editor .ProseMirror {
+  outline: none;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  line-height: 1.6;
+}
+
+.blockr-prose-editor p {
+  margin: 0 0 8px;
+}
+
+.blockr-prose-editor p:last-child {
+  margin-bottom: 0;
+}
+
+/* ---- a computed value: the text reads normally; a dotted underline marks
+   what R wrote ------------------------------------------------------------------ */
+
+.blockr-r-chip {
+  white-space: nowrap;
+  cursor: pointer;
+  border-radius: var(--blockr-radius-sm, 4px);
+  text-decoration: underline dotted var(--blockr-color-text-subtle, #9ca3af);
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 3px;
+  transition: background-color 0.15s ease;
+}
+
+.blockr-r-chip:hover {
+  background: var(--blockr-color-bg-hover, #f3f4f6);
+}
+
+/* A value that just changed, for a few seconds. */
+.blockr-r-chip.is-changed {
+  background: var(--blockr-color-bg-accent-subtle, #eff6ff);
+  text-decoration-color: var(--blockr-color-border-accent, #2563eb);
+  transition: background-color 1.2s ease;
+}
+
+/* No value yet (no data, or the round trip has not come back): its code. */
+.blockr-r-chip.is-dormant,
+.blockr-r-chip.is-err {
+  font-family: var(--blockr-font-mono, 'SF Mono', 'Fira Code', 'Consolas', 'Monaco', monospace);
+  font-size: var(--blockr-font-size-sm, 0.8125rem);
+  color: var(--blockr-color-text-muted, #6b7280);
+}
+
+/* Failed: this one value; the sentence around it stands. */
+.blockr-r-chip.is-err {
+  color: var(--blockr-color-error, #dc2626);
+  text-decoration: underline wavy var(--blockr-color-error, #dc2626);
+  text-decoration-thickness: 1px;
+}
+
+/* ---- the code field: a Blockr.Input field, inline ------------------------------ */
+
+.blockr-r-chip.is-editing {
+  display: inline-block;
+  text-decoration: none;
+  background: none;
+}
+
+.blockr-r-field {
+  display: inline-block;
+  width: auto;
+  vertical-align: baseline;
+}
+
+.blockr-r-field .blockr-input__field {
+  min-width: 3ch;
+  padding: 0 6px;
+  border: 1px solid var(--blockr-color-border-accent, #2563eb);
+  border-radius: var(--blockr-radius-sm, 4px);
+  background: var(--blockr-color-bg-raised, #ffffff);
+  box-shadow: var(--blockr-focus-ring, 0 0 0 3px rgba(37, 99, 235, 0.12));
+  line-height: 1.6;
+}
+
+/* ---- the raw markdown --------------------------------------------------------- */
+
+.blockr-prose-source {
+  font-size: var(--blockr-font-size-sm, 0.8125rem);
+}
+
+.blockr-prose-source > summary {
+  width: fit-content;
+  cursor: pointer;
+  color: var(--blockr-color-text-muted, #6b7280);
+  user-select: none;
+  transition: color 0.15s ease;
+}
+
+.blockr-prose-source > summary:hover {
+  color: var(--blockr-color-text-default, #111827);
+}
+
+.blockr-prose-source-ta {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 6px;
+  padding: 10px 14px;
+  border: 1px solid var(--blockr-color-border-default, #e5e7eb);
+  border-radius: var(--blockr-radius-lg, 8px);
+  outline: 0;
+  resize: vertical;
+  background: var(--blockr-color-bg-field, #f9fafb);
+  color: var(--blockr-color-text-default, #111827);
+  font-family: var(--blockr-font-mono, 'SF Mono', 'Fira Code', 'Consolas', 'Monaco', monospace);
+  font-size: var(--blockr-font-size-sm, 0.8125rem);
+  line-height: 1.6;
+}
+
+.blockr-prose-source-ta:focus {
+  border-color: var(--blockr-color-border-accent, #2563eb);
+  box-shadow: var(--blockr-focus-ring, 0 0 0 3px rgba(37, 99, 235, 0.12));
+}
+
+/* ---- the link field: Cmd/Ctrl+K ------------------------------------------------ */
+.blockr-prose-link {
+  position: fixed; z-index: var(--blockr-z-menu, 1070); background: var(--blockr-color-bg-raised, #fff);
+  border: 1px solid var(--blockr-color-border-default, #e5e7eb); border-radius: var(--blockr-radius-lg, 8px);
+  box-shadow: var(--blockr-shadow-md, 0 8px 24px rgba(17, 24, 39, .12)); padding: 4px;
+}
+.blockr-prose-link .blockr-input__field { width: 260px; }
+
+/* ---- a reference to a figure or a table ---------------------------------------- */
+.blockr-xref {
+  white-space: nowrap;
+  text-decoration: underline dotted var(--blockr-color-text-subtle, #9ca3af);
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 3px;
+}
+.blockr-xref.is-unknown {
+  font-family: var(--blockr-font-mono, 'SF Mono', monospace);
+  font-size: var(--blockr-font-size-sm, 0.8125rem);
+  color: var(--blockr-color-text-muted, #6b7280);
+}

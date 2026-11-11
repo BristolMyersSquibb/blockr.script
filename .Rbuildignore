@@ -1,0 +1,14 @@
+^node_modules$
+^package-lock\.json$
+^.*\.Rproj$
+^\.Rproj\.user$
+^\.claude$
+^\.github$
+^\.lintr$
+^dev$
+^package\.json$
+^LICENSE\.md$
+^_pkgdown\.yml$
+^docs$
+^cran-comments\.md$
+^tests/js$

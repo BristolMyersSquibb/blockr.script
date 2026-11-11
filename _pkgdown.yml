@@ -1,0 +1,27 @@
+url: https://bristolmyerssquibb.github.io/blockr.script/
+template:
+  bootstrap: 5
+
+navbar:
+  structure:
+    left: [intro, reference, news]
+    right: [search, github]
+
+reference:
+- title: Blocks
+  desc: A block whose state is an R script, and one whose state is markdown.
+  contents:
+  - new_script_block
+  - new_prose_block
+
+- title: Results
+  desc: What a script can return beyond data frames, plots and tables.
+  contents:
+  - html_page
+  - inline_r
+
+- title: Extending
+  desc: Teach the script block to draw another package's result class.
+  contents:
+  - block_result_output
+  - register_script_blocks

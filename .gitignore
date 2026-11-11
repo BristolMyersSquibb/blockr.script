@@ -1,0 +1,6 @@
+node_modules/
+.Rproj.user/
+*.Rcheck/
+*.tar.gz
+.claude/
+docs/

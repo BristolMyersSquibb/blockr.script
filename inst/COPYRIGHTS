@@ -1,0 +1,28 @@
+blockr.script bundles third-party JavaScript in two files:
+
+  inst/js/blockr-script.js   the script editor
+  inst/js/prose-block.js     the prose editor
+
+Both are built with esbuild from the sources in tools/srcjs. The libraries
+they contain are named, with exact versions, in package.json and
+package-lock.json of the source repository:
+
+  https://github.com/BristolMyersSquibb/blockr.script
+
+Libraries bundled directly:
+
+  CodeMirror 6 (@codemirror/autocomplete, commands, language, legacy-modes,
+    merge, search, state, view) and Lezer
+    Copyright (C) Marijn Haverbeke and others. MIT License.
+    https://codemirror.net
+
+  Milkdown (@milkdown/kit)
+    Copyright (C) Mirone and contributors. MIT License.
+    https://milkdown.dev
+
+Libraries those two bring with them include ProseMirror (Marijn Haverbeke,
+MIT), remark, unified and micromark (Titus Wormer, MIT), and lodash-es
+(OpenJS Foundation, MIT). Of the 161 packages the lockfile lists for the
+bundles, 157 are under the MIT License. The other four are under
+BSD-2-Clause, BSD-3-Clause, ISC, and "MPL-2.0 OR Apache-2.0". All are
+compatible with GPL (>= 3), the license of this package.

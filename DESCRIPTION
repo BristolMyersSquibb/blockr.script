@@ -1,0 +1,55 @@
+Package: blockr.script
+Title: Script and Prose Blocks for 'blockr'
+Version: 0.0.0.9000
+Authors@R: 
+    c(person(given = "Christoph",
+             family = "Sax",
+             role = c("aut", "cre"),
+             email = "christoph@cynkra.com"),
+      person(given = "Nicolas",
+             family = "Bennett",
+             role = "aut",
+             email = "nicolas@cynkra.com"),
+      person(given = "Bristol Myers Squibb", role = c("fnd", "cph")))
+Description: A block for 'blockr' boards whose state is an ordinary R
+    script. The script reads any number of upstream results and returns
+    whatever its last statement evaluates to. A top-level assignment of a
+    plain value becomes a control on the block, and the exported code is the
+    script with the current values written in. A prose block holds
+    markdown with inline R, as 'Quarto' writes it, and reads its inputs the
+    same way.
+License: GPL (>= 3)
+URL: https://github.com/BristolMyersSquibb/blockr.script
+BugReports: https://github.com/BristolMyersSquibb/blockr.script/issues
+Depends:
+    R (>= 4.1.0)
+Encoding: UTF-8
+Language: en-US
+Roxygen: list(markdown = TRUE)
+Config/testthat/edition: 3
+Remotes:
+    BristolMyersSquibb/blockr.core,
+    BristolMyersSquibb/blockr.ui
+Imports:
+    blockr.core (>= 0.1.4),
+    blockr.ui,
+    evaluate,
+    htmltools,
+    jsonlite,
+    shiny,
+    stats,
+    tools,
+    utils,
+    whisker
+Suggests:
+    dm,
+    dplyr,
+    ggplot2,
+    grid,
+    gt,
+    gtsummary,
+    knitr,
+    lattice,
+    reactives,
+    testthat (>= 3.0.0)
+Config/roxygen2/version: 8.1.0

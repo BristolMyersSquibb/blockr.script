@@ -1,0 +1,29 @@
+{
+  "name": "blockr.script",
+  "private": true,
+  "description": "JS bundles for the blockr.script editor and prose block (built into inst/js).",
+  "dependencies": {
+    "@codemirror/autocomplete": "^6.20.3",
+    "@codemirror/commands": "^6.10.3",
+    "@codemirror/language": "^6.12.3",
+    "@codemirror/legacy-modes": "^6.5.3",
+    "@codemirror/merge": "^6.12.1",
+    "@codemirror/search": "^6.7.2",
+    "@codemirror/state": "^6.6.0",
+    "@codemirror/view": "^6.43.0",
+    "@milkdown/kit": "^7.21.2"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "remark-parse": "^11.0.0",
+    "remark-stringify": "^11.0.0",
+    "unified": "^11.0.5"
+  },
+  "scripts": {
+    "build:script": "npx esbuild tools/srcjs/script-editor/index.js --bundle --outfile=inst/js/blockr-script.js --format=iife --minify",
+    "build:prose": "npx esbuild tools/srcjs/prose-block/index.js --bundle --outfile=inst/js/prose-block.js --format=iife --minify --define:process.env.NODE_ENV=\\\"production\\\"",
+    "build": "npm run build:script && npm run build:prose",
+    "test:js": "node --test tests/js/*.test.mjs"
+  },
+  "type": "module"
+}

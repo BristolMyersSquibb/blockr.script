@@ -1,0 +1,926 @@
+/* Code block — the CodeMirror editor shown inline on the card.
+ * Hand-rolled to the blockr design system (blockr.docs/design-system): no
+ * framework classes, --blockr-* tokens with literal fallbacks so it renders
+ * standalone. */
+
+.blockr-script-block { width: 100%; margin-bottom: 10px; }
+
+.blockr-script-label {
+  display: block;
+  font-weight: 500;
+  font-size: var(--blockr-font-size-sm, 0.8125rem);
+  color: var(--blockr-color-text-secondary, #6b7280);
+  margin-bottom: 6px;
+}
+
+/* Bordered frame holding the editor + the flush footer. */
+.blockr-script-frame {
+  border: 1px solid var(--blockr-color-border, #e5e7eb);
+  border-radius: var(--blockr-radius-lg, 8px);
+  overflow: hidden;
+}
+
+/* The CodeMirror mount. Height tracks content between a min and a max:
+ * short functions don't leave dead space, long ones scroll internally
+ * (the scroller's overflow) instead of pushing the Run bar and the
+ * downstream preview down the page. */
+.blockr-script .cm-editor { min-height: 140px; max-height: 528px; }
+.blockr-script .cm-editor.cm-focused { outline: none; }
+.blockr-script .cm-scroller {
+  overflow: auto;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', 'Monaco', monospace;
+  font-size: 12.5px;
+  line-height: 1.65;
+}
+/* A little breathing room so the code isn't flush against the frame edges.
+ * Padding on .cm-content keeps the line-number gutter aligned and the diff
+ * line-backgrounds intact. */
+.blockr-script .cm-content { padding: 6px 0; }
+.blockr-script .cm-line { padding-left: 10px; padding-right: 10px; }
+.blockr-script .cm-gutters { padding-left: 2px; }
+
+/* Align the inline hunk (CodeMirror-merge) buttons to blockr.dplyr's
+ * click-through pill (`.blockr-pill`): 11px / weight 500 / 2px 8px / 4px radius,
+ * page font. The light green/red two-tone is kept (semantic diff convention, and
+ * consistent with dplyr's tinted `.blockr-expr-confirm`); only the type scale is
+ * brought down so they read as the same quiet control family. */
+.blockr-script .cm-chunkButtons button {
+  border-radius: var(--blockr-radius-sm, 4px);
+  /* These buttons live INSIDE the CodeMirror editor, so `inherit` would pick up
+   * the editor's monospace; pin them to the page font instead (Bootstrap's
+   * body font; design-system default sans). */
+  font-family: var(--bs-body-font-family,
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
+  font-weight: 500;
+  font-size: 11px;
+  padding: 2px 8px;
+}
+/* Light two-tone Accept/Reject (same as the footer). !important to beat the
+ * solid green and red of CodeMirror-merge's runtime-injected theme. */
+.blockr-script .cm-chunkButtons button[name="accept"] {
+  background: var(--blockr-color-bg-success, #e9f9ef) !important;
+  color: var(--blockr-color-text-success, #15803d) !important;
+  border: 1px solid var(--blockr-color-border-success-subtle, #b7ebcb) !important;
+}
+.blockr-script .cm-chunkButtons button[name="reject"] {
+  background: var(--blockr-color-bg-danger, #fdecec) !important;
+  color: var(--blockr-color-text-danger, #b91c1c) !important;
+  border: 1px solid var(--blockr-color-border-danger-subtle, #f5c6c6) !important;
+}
+
+/* Flush footer bar (review controls OR Run), attached to the editor's bottom. */
+.blockr-script-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 5px 8px;
+  /* Constant height across states (review / dirty-Run / rest) so toggling the
+   * footer contents never reflows the block. The empty rest bar keeps this
+   * height too. (Open question: whether a persistent bar is preferable to
+   * collapsing — see .blockr-script-footer--rest.) */
+  box-sizing: border-box;
+  min-height: 35px;
+  border-top: 1px solid var(--blockr-color-border, #e5e7eb);
+  background: var(--blockr-grey-50, #f9fafb);
+  font-size: var(--blockr-font-size-sm, 0.8125rem);
+}
+.blockr-script-footer__label {
+  color: var(--blockr-color-text-secondary, #6b7280);
+  /* Let a long syntax-error message ellipsize instead of pushing the actions
+   * (Run) button out of the bar. */
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.blockr-script-footer__actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+/* Footer buttons — hand-rolled, no framework. Scoped under .blockr-script-footer
+ * so they win over any ambient .btn rules. Accept/Reject match the inline hunk
+ * buttons (solid green/red); Run uses the design-system tinted-primary confirm. */
+.blockr-script-footer .blockr-script-btn {
+  height: 24px;
+  box-sizing: border-box;
+  /* Flex-center the label so the 1px border doesn't push the text off-centre
+   * (was sitting slightly high). */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* Match blockr.dplyr's click-through pill scale: 11px / weight 500 / 2px 8px. */
+  padding: 2px 8px;
+  border: none;
+  border-radius: var(--blockr-radius-sm, 4px);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s ease, filter 0.15s ease;
+}
+.blockr-script-footer .blockr-script-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--blockr-focus-ring, 0 0 0 3px rgba(59, 130, 246, 0.1));
+}
+/* Accept / Reject as light two-tone badges (matches blockr-dock's
+ * `.badge-two-tone`: light tint + same-hue text + subtle border), font
+ * inherited from the page. */
+.blockr-script-footer .blockr-script-btn--accept {
+  background: var(--blockr-color-bg-success, #e9f9ef);
+  color: var(--blockr-color-text-success, #15803d);
+  border: 1px solid var(--blockr-color-border-success-subtle, #b7ebcb);
+}
+.blockr-script-footer .blockr-script-btn--accept:hover { background: var(--blockr-green-100, #d6f5e1); }
+.blockr-script-footer .blockr-script-btn--reject {
+  background: var(--blockr-color-bg-danger, #fdecec);
+  color: var(--blockr-color-text-danger, #b91c1c);
+  border: 1px solid var(--blockr-color-border-danger-subtle, #f5c6c6);
+}
+.blockr-script-footer .blockr-script-btn--reject:hover { background: var(--blockr-red-100, #fbdcdc); }
+/* Run as the same two-tone badge, in blue. */
+.blockr-script-footer .blockr-script-btn--run {
+  background: var(--blockr-color-primary-bg, #eaf1fd);
+  color: var(--blockr-color-primary, #2563eb);
+  border: 1px solid var(--blockr-color-border-accent-subtle, #c3d6fb);
+}
+.blockr-script-footer .blockr-script-btn--run:hover { background: var(--blockr-accent-100, #dce8fc); }
+/* Muted keyboard hint on the Run button: Cmd+Enter on a Mac (html.blockr-script-mac,
+ * set by gear-editor.js), Ctrl+Enter elsewhere. */
+.blockr-script-footer .blockr-script-kbd {
+  margin-left: 5px;
+  opacity: 0.55;
+  font-size: 0.95em;
+}
+.blockr-script-footer .blockr-script-kbd--mac,
+.blockr-script-mac .blockr-script-footer .blockr-script-kbd--pc { display: none; }
+.blockr-script-mac .blockr-script-footer .blockr-script-kbd--mac { display: inline; }
+/* Disabled Run = pending edit has a syntax error: can't be run. */
+.blockr-script-footer .blockr-script-btn--run:disabled,
+.blockr-script-footer .blockr-script-btn--run[disabled] {
+  background: var(--blockr-grey-200, #f1f3f5);
+  color: var(--blockr-grey-400, #adb5bd);
+  border-color: var(--blockr-grey-300, #dee2e6);
+  cursor: not-allowed;
+}
+/* Red footer label for a syntax error in the pending edit. */
+.blockr-script-footer .blockr-script-syntax-msg {
+  color: var(--blockr-color-danger, #d6336c);
+  font-weight: 600;
+}
+
+/* The container is a query context so the params grid reflows to the *block*
+ * width (set by the dock panel), not the viewport — same idiom as blockr.dplyr. */
+.blockr-script-container { width: 100%; padding-bottom: 10px; container-type: inline-size; }
+
+.blockr-script-params { margin-bottom: 8px; }
+
+/* --- The params band -------------------------------------------------------
+ * Equal tracks, so the fields line up down the band and across its rows, and a
+ * column count that steps down as the panel narrows. What changed is WHERE it
+ * steps: the old ladder was set by a 150px track, which is right for a number
+ * or a flag and far too tight for a select, so a half-width panel kept four
+ * columns and gave each select 154px, where the overflow chip is all that
+ * fits. Four tidy boxes saying nothing about what is selected.
+ *
+ * So the band picks its ladder from what it holds (sb_grid_track()). A band
+ * with a select or a text steps at a 220px track, which is two columns where
+ * the old grid insisted on four; a band of knobs keeps the 150px one. The
+ * counts are clamped per band (`--blockr-script-cols*`), so a two-field band is never
+ * widened into a row with an empty trailing track. */
+.blockr-script-params-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(var(--blockr-script-cols, 4), minmax(0, 1fr));
+}
+
+/* Knobs only: a 150px track, so the steps are at 4 / 3 / 2 of one plus the
+ * 12px gaps. Unchanged from the old ladder, which was built for these. */
+@container (max-width: 636px) {
+  .blockr-script-band--knobs { grid-template-columns: repeat(var(--blockr-script-cols-3, 3), minmax(0, 1fr)); }
+}
+@container (max-width: 474px) {
+  .blockr-script-band--knobs { grid-template-columns: repeat(var(--blockr-script-cols-2, 2), minmax(0, 1fr)); }
+}
+@container (max-width: 312px) {
+  .blockr-script-band--knobs { grid-template-columns: 1fr; }
+}
+
+/* Anything holding tags or a sentence. Not one track width but a rising one: a
+ * third and a fourth column are added only once every column would still be
+ * 330px, so a wide panel spends its width on the controls before it spends it
+ * on columns. The two-column step is the exception, at 220px, because two
+ * narrow columns still read better than one wide one.
+ *
+ * Measured on a nine-field band: 1768px is four columns of 430, 1103px three
+ * of 359, 703px two of 346, 453px two of 220. */
+@container (max-width: 1356px) {
+  .blockr-script-band--wide { grid-template-columns: repeat(var(--blockr-script-cols-3, 3), minmax(0, 1fr)); }
+}
+@container (max-width: 1014px) {
+  .blockr-script-band--wide { grid-template-columns: repeat(var(--blockr-script-cols-2, 2), minmax(0, 1fr)); }
+}
+@container (max-width: 452px) {
+  .blockr-script-band--wide { grid-template-columns: 1fr; }
+}
+
+/* A checkbox carries its label beside the box, so its field is a control with
+ * no label row. The spacer holds that row open (sb_field_wrapper()) and the
+ * box gets the same 42px shell as every other control, so a flag sits level
+ * with the fields either side instead of 23px above them. */
+.blockr-script-field--flag .blockr-script-field-label--spacer {
+  visibility: hidden;
+}
+.blockr-script-field--flag .checkbox {
+  margin: 0;
+}
+.blockr-script-field--flag .checkbox label {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  height: 42px;
+  padding: 0 12px;
+  background-color: var(--blockr-color-bg-input, #f9fafb);
+  border: 1px solid var(--blockr-color-border, #e5e7eb);
+  /* --blockr-radius-lg */
+  border-radius: var(--blockr-radius-lg, 8px);
+  cursor: pointer;
+}
+.blockr-script-field--flag .checkbox input[type="checkbox"] {
+  margin: 0;
+  flex-shrink: 0;
+}
+
+/* --- Auto-generated parameter fields ---------------------------------------
+ * Each field is a vertical stack: label on top, control below — matching the
+ * blockr.dplyr popover/field look. Neutralise Bootstrap's default form-group
+ * spacing so the grid gap is the single source of vertical rhythm. */
+.blockr-script-params .block-input-wrapper {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.blockr-script-params .block-input-wrapper .form-group,
+.blockr-script-params .block-input-wrapper .shiny-input-container {
+  margin-bottom: 0;
+  width: 100%;
+}
+
+/* Field label, as blockr.ui's .blockr-label: 12px, regular, muted, 4px
+ * above the control, the same for select and text/number/checkbox fields. */
+.blockr-script-params .blockr-script-field-label,
+.blockr-script-params .block-input-wrapper label.control-label,
+.blockr-script-params .block-input-wrapper .shiny-input-container > label {
+  display: block;
+  font-weight: var(--blockr-font-weight-normal);
+  font-size: var(--blockr-font-size-xs);
+  color: var(--blockr-color-text-muted);
+  margin-bottom: 4px;
+}
+
+/* Text / number inputs → the shared bordered 42px control.
+ * Scoped to Shiny's `.form-control` only, so the transparent search `<input>`
+ * *inside* a Blockr.Select (`.blockr-select__search`, no `.form-control`) is
+ * never turned into a nested bordered box. */
+.blockr-script-params .block-input-wrapper .form-control {
+  width: 100%;
+  height: 42px;
+  padding: 8px 12px;
+  font-size: var(--blockr-font-size-base, 0.875rem);
+  color: var(--blockr-color-text-default);
+  background-color: var(--blockr-color-bg-field);
+  border: 1px solid var(--blockr-color-border-default);
+  border-radius: var(--blockr-radius-lg, 8px);
+  box-shadow: none;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+.blockr-script-params .block-input-wrapper .form-control:focus {
+  outline: none;
+  background-color: var(--blockr-color-bg-surface);
+  border-color: var(--blockr-color-border-accent);
+  box-shadow: var(--blockr-focus-ring);
+}
+.blockr-script-params .block-input-wrapper .form-control::placeholder {
+  color: var(--blockr-grey-400, #9ca3af);
+}
+
+/* Checkbox fields keep their inline label to the right of the box. */
+.blockr-script-params .block-input-wrapper .checkbox label,
+.blockr-script-params .block-input-wrapper .shiny-input-container .checkbox label {
+  font-weight: 400;
+  font-size: var(--blockr-font-size-base);
+  color: var(--blockr-color-text-default);
+  margin-bottom: 0;
+}
+
+/* CodeMirror's search bar (Mod-f in the editor), on the design system's
+ * controls: 26px fields and secondary buttons, 12px labels. Three classes deep
+ * to beat CodeMirror's injected theme. The match colours stay CodeMirror's. */
+.blockr-script .cm-panels.cm-panels-top {
+  background: var(--blockr-color-bg-subtle, #f9fafb);
+  border-bottom: 1px solid var(--blockr-color-border, #e5e7eb);
+  color: var(--blockr-color-text-default, #111827);
+}
+.blockr-script .cm-panel.cm-search {
+  padding: 8px 10px;
+  font-size: var(--blockr-font-size-xs, 0.75rem);
+}
+.blockr-script .cm-panel.cm-search .cm-textfield {
+  height: 26px;
+  margin: 2px 4px 2px 0;
+  padding: 0 8px;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', 'Monaco', monospace;
+  font-size: 12.5px;
+  background: var(--blockr-color-bg-surface, #fff);
+  border: 1px solid var(--blockr-color-border, #e5e7eb);
+  border-radius: var(--blockr-radius-sm, 4px);
+  vertical-align: middle;
+}
+.blockr-script .cm-panel.cm-search .cm-textfield:focus {
+  outline: none;
+  border-color: var(--blockr-color-border-accent, #2563eb);
+}
+.blockr-script .cm-panel.cm-search .cm-button {
+  height: 26px;
+  margin: 2px 4px 2px 0;
+  padding: 0 10px;
+  font-size: var(--blockr-font-size-xs, 0.75rem);
+  color: var(--blockr-color-text-default, #111827);
+  background: var(--blockr-color-bg-surface, #fff);
+  background-image: none;
+  border: 1px solid var(--blockr-color-border, #e5e7eb);
+  border-radius: var(--blockr-radius-sm, 4px);
+  vertical-align: middle;
+}
+.blockr-script .cm-panel.cm-search .cm-button:hover {
+  background: var(--blockr-color-bg-hover, #f3f4f6);
+}
+.blockr-script .cm-panel.cm-search label {
+  margin-right: 10px;
+  font-size: var(--blockr-font-size-xs, 0.75rem);
+  color: var(--blockr-color-text-muted, #6b7280);
+  vertical-align: middle;
+}
+.blockr-script .cm-panel.cm-search input[type="checkbox"] {
+  margin-right: 4px;
+  vertical-align: -2px;
+}
+.blockr-script .cm-panel.cm-search button[name="close"] {
+  top: 6px;
+  right: 8px;
+  font-size: 16px;
+  color: var(--blockr-color-text-muted, #6b7280);
+}
+
+/* --- The editor behind the gear (gear_editor_ui()) ---
+ * The gear button and the tray (.blockr-settings) are blockr.ui's. The
+ * editor is a field in the tray, so it sits on the surface colour. */
+.blockr-script-gear { width: 100%; }
+.blockr-script-tray .blockr-script-block:last-child { margin-bottom: 0; }
+/* In the tray there's more room, so allow a taller floor. The cap is the one
+ * of every editor (about 25 rows: 25 * 20.625px line + 12px content padding)
+ * before the editor starts scrolling internally. */
+.blockr-script-tray .blockr-script .cm-editor { min-height: 180px; }
+
+/* Beside the output (gear-editor.js): on a wide block the open tray's branch
+ * takes the right column and the output stacks in the left one. What comes
+ * before the branch (a header row) keeps the full width. */
+.blockr-script-side {
+  display: grid;
+  /* --blockr-script-tray-w is the width the divider was dragged to (gear-editor.js). */
+  grid-template-columns: minmax(0, 1fr) var(--blockr-script-tray-w, minmax(360px, 42%));
+  column-gap: 16px;
+  align-items: start;
+}
+.blockr-script-side > * { grid-column: 1 / -1; min-width: 0; }
+.blockr-script-side > .blockr-script-side__main { grid-column: 1; }
+.blockr-script-side > .blockr-script-side__tray { grid-column: 2; }
+
+/* ---- code block: input lines -------------------------------------------
+ * A top-level assignment of a plain value becomes a control on the card. The
+ * script carries no fence comment saying so, so the editor says it instead:
+ * a tinted band with a left rule on the line, and a gutter glyph naming the
+ * widget. The accent colour at low alpha, from the tokens. */
+.blockr-script .cm-input-line {
+  background: linear-gradient(
+    90deg,
+    var(--blockr-color-bg-accent-subtle, rgba(37, 99, 235, 0.07)),
+    color-mix(in srgb, var(--blockr-color-border-accent, #2563eb) 2%, transparent) 70%
+  );
+  box-shadow: inset 2px 0 0 var(--blockr-color-border-accent-subtle, #93b4f0);
+}
+
+/* The glyph column sits between the line numbers and the code. Fixed width so
+ * adding the first input never shifts the code horizontally. */
+.blockr-script .cm-input-gutter {
+  width: 16px;
+  padding: 0;
+}
+.blockr-script .cm-input-glyph {
+  display: block;
+  position: relative;
+  width: 100%;
+  text-align: center;
+  /* Page font, not the editor's monospace: these are UI marks, not code. */
+  font-family: var(--bs-body-font-family,
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
+  font-size: 11px;
+  line-height: inherit;
+  color: var(--blockr-color-border-accent-subtle, #93b4f0);
+  cursor: default;
+}
+
+/* The select caret is drawn, not typed: U+25BE and its neighbours are absent
+ * from enough font stacks (headless Chromium among them) to come out blank at
+ * this size, while #, Aa and the check mark render everywhere. */
+.blockr-script .cm-input-glyph[data-kind="select"] {
+  /* Hide the character but keep the box: `font-size: 0` would collapse the
+     line-height-derived height and strand the caret at the top of the line. */
+  color: transparent;
+}
+.blockr-script .cm-input-glyph[data-kind="select"]::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  margin: -2px 0 0 -4px;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  /* Not currentColor: the text above is transparent. */
+  border-top: 4px solid var(--blockr-color-border-accent-subtle, #93b4f0);
+}
+
+/* Input chips: one per connected input, above the editor in the tray. A click
+   inserts the name at the cursor; the title lists the columns. */
+.blockr-script-inputs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 10px;
+}
+.blockr-script-inputs__label {
+  font-size: var(--blockr-font-size-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--blockr-color-text-muted);
+  margin-right: 2px;
+}
+.blockr-script-inputs__empty {
+  font-size: var(--blockr-font-size-xs);
+  color: var(--blockr-color-text-muted);
+}
+.blockr-script-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--blockr-color-border-default);
+  border-radius: var(--blockr-radius-md, 6px);
+  background: var(--blockr-color-bg-surface);
+  font-size: var(--blockr-font-size-xs);
+  cursor: pointer;
+}
+.blockr-script-chip:hover {
+  border-color: var(--blockr-color-border-strong, var(--blockr-grey-400));
+}
+.blockr-script-chip__name {
+  font-family: var(--blockr-font-mono, ui-monospace, monospace);
+  font-weight: 600;
+  color: var(--blockr-color-text-default);
+}
+.blockr-script-chip__dims {
+  color: var(--blockr-color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+/* The first input reads as `data`; this is its own name, shown as "= name". */
+.blockr-script-chip__alias {
+  font-family: var(--blockr-font-mono, ui-monospace, monospace);
+  color: var(--blockr-color-text-muted);
+}
+
+/* ---- The sentence -------------------------------------------------------
+   The script's `#| title:` / `subtitle:` / `caption:` lines, drawn in the row
+   with the gear (R/sentence.R). Sizes follow blockr.viz's title band
+   (table.css .dd-table-title), so a script block and a chart block read
+   alike. The word mark itself is blockr.ui's `.blockr-slot`. */
+.blockr-script-gear .blockr-gear-header {
+  align-items: flex-start;
+  gap: 8px;
+  /* The open tray's beak reaches 8px above the band (blockr.ui draws a
+     10px square at top: -6px, turned 45deg); blockr.ui's 6px left it on the
+     gear's border; 10px clears it by 2px. */
+  margin-bottom: 10px;
+}
+
+/* Shiny gives a non-empty output `display: contents`; both rules so the
+   sentence takes the row's width either way. */
+.blockr-script-gear .blockr-gear-header > .blockr-script-sentence-out,
+.blockr-script-gear .blockr-script-sentence {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.blockr-script-sentence { padding: 2px 8px 2px 2px; }
+
+.blockr-script-sentence__title {
+  font-size: var(--blockr-font-size-lg, 1rem);
+  font-weight: 600;
+  color: var(--blockr-color-text-default, #111827);
+  white-space: pre-line;
+}
+
+.blockr-script-sentence__subtitle {
+  font-size: var(--blockr-font-size-sm, 0.8125rem);
+  color: var(--blockr-color-text-muted, #6b7280);
+  margin-top: 1px;
+  white-space: pre-line;
+}
+
+.blockr-script-sentence__caption {
+  font-size: var(--blockr-font-size-xs, 0.75rem);
+  color: var(--blockr-color-text-muted, #6b7280);
+  margin-top: 4px;
+  white-space: pre-line;
+}
+
+/* A control whose clause dropped: it would be a word if it were set. Same
+   menu as the word, dashed because it is an invitation. (blockr.viz
+   chart.css .blockr-slot-offer.) */
+.blockr-script-sentence .blockr-slot-offer {
+  display: inline-block;
+  margin-left: 7px;
+  padding: 0 6px;
+  border: 1px dashed var(--blockr-color-border-strong, #d1d5db);
+  border-radius: var(--blockr-radius-sm, 4px);
+  font-size: var(--blockr-font-size-xs, 0.75rem);
+  line-height: 1.5;
+  color: var(--blockr-color-text-secondary, #6b7280);
+  cursor: pointer;
+  white-space: nowrap;
+  vertical-align: 1px;
+}
+
+.blockr-script-sentence :is(.blockr-script-sentence__subtitle, .blockr-script-sentence__caption):has(.blockr-slot-offer) {
+  line-height: 2.25;
+}
+
+.blockr-script-sentence .blockr-slot-offer:hover,
+.blockr-script-sentence .blockr-slot-offer:focus-visible {
+  border-color: var(--blockr-color-border-accent, #2563eb);
+  color: var(--blockr-color-text-accent, #2563eb);
+  outline: none;
+}
+
+/* The menu script is missing or too old (sentence.js menuCheck): every band
+   with a list word says so, in the band, so it is seen before anyone clicks. */
+html.blockr-script-no-menu .blockr-script-sentence:has([data-slot-kind="select"], [data-slot-kind="multi"])::after {
+  content: "Dropdowns unavailable: blockr.ui is missing or older than blockr.script needs.";
+  display: block;
+  margin-top: 4px;
+  font-size: var(--blockr-font-size-xs, 0.75rem);
+  color: var(--blockr-color-text-danger, #b91c1c);
+}
+
+/* A number or text word being edited: the word is replaced by a field that
+   looks like one, accent edge and focus ring (sentence.js; after blockr.viz
+   chart.css .blockr-slot-input). */
+.blockr-script-slot-input {
+  font: inherit;
+  font-weight: 500;
+  color: var(--blockr-color-text-accent-strong, #1d4ed8);
+  padding: 0 4px;
+  margin: 0 1px;
+  border: 1px solid var(--blockr-color-border-accent, #2563eb);
+  border-radius: var(--blockr-radius-sm, 4px);
+  background: var(--blockr-color-bg-surface, #fff);
+  line-height: inherit;
+  outline: none;
+  box-shadow: var(--blockr-focus-ring, 0 0 0 3px rgba(37, 99, 235, 0.12));
+  font-variant-numeric: tabular-nums;
+}
+
+.blockr-script-slot-input[type=number] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.blockr-script-slot-input[type=number]::-webkit-outer-spin-button,
+.blockr-script-slot-input[type=number]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* A number's range beside the field ("1 to 5"); red once the typed value is
+   outside it, naming the end it will be held at. */
+.blockr-script-slot-range {
+  margin: 0 4px 0 2px;
+  font-size: var(--blockr-font-size-xs, 0.75rem);
+  font-weight: 400;
+  color: var(--blockr-color-text-muted, #6b7280);
+  white-space: nowrap;
+}
+
+.blockr-script-slot-range--out {
+  color: var(--blockr-color-text-danger, #b91c1c);
+}
+
+/* ---- the row above the editor: tools ------------------------------------ */
+.blockr-script-tools {
+  margin-left: auto;
+  display: inline-flex;
+  gap: 6px;
+}
+.blockr-script-tool {
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--blockr-color-border-default);
+  border-radius: var(--blockr-radius-md, 6px);
+  background: var(--blockr-color-bg-surface);
+  color: var(--blockr-color-text-default);
+  font-size: var(--blockr-font-size-xs);
+  cursor: pointer;
+}
+.blockr-script-tool:hover,
+.blockr-script-chip[aria-expanded="true"],
+.blockr-script-tool[aria-expanded="true"] {
+  border-color: var(--blockr-color-border-accent, var(--blockr-grey-400));
+}
+
+/* ---- popovers: column search, + Control, ? ------------------------------ */
+.blockr-script-pop {
+  position: absolute;
+  z-index: var(--blockr-z-menu, 1070);
+  min-width: 240px;
+  max-width: 380px;
+  max-height: 340px;
+  overflow: auto;
+  padding: 6px;
+  border: 1px solid var(--blockr-color-border-default);
+  border-radius: var(--blockr-radius-lg, 8px);
+  background: var(--blockr-color-bg-surface, #fff);
+  box-shadow: var(--blockr-shadow-md, 0 6px 24px rgba(0, 0, 0, .12));
+  font-size: var(--blockr-font-size-sm);
+  color: var(--blockr-color-text-default);
+}
+.blockr-script-pop:focus { outline: none; }
+.blockr-script-pop__search {
+  width: 100%;
+  box-sizing: border-box;
+  height: 30px;
+  margin-bottom: 4px;
+  padding: 0 8px;
+  border: 1px solid var(--blockr-color-border-default);
+  border-radius: var(--blockr-radius-md, 6px);
+  font-size: var(--blockr-font-size-sm);
+}
+.blockr-script-pop__caption {
+  padding: 4px 8px 6px;
+  font-size: var(--blockr-font-size-xs);
+  color: var(--blockr-color-text-muted);
+}
+.blockr-script-pop__item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: var(--blockr-radius-md, 6px);
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+}
+.blockr-script-pop__item:hover,
+.blockr-script-pop__item:focus { background: var(--blockr-color-bg-subtle, #f3f4f6); outline: none; }
+.blockr-script-pop__label { font-weight: 500; white-space: nowrap; }
+.blockr-script-pop__note {
+  margin-top: 4px;
+  padding: 6px 8px 2px;
+  border-top: 1px solid var(--blockr-color-border-default);
+  font-size: var(--blockr-font-size-xs);
+  line-height: 1.4;
+  color: var(--blockr-color-text-muted);
+}
+.blockr-script-pop__name {
+  font-family: var(--blockr-font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.blockr-script-pop__type {
+  font-size: var(--blockr-font-size-xs);
+  color: var(--blockr-color-text-muted);
+}
+.blockr-script-pop__hint {
+  margin-left: auto;
+  font-size: var(--blockr-font-size-xs);
+  color: var(--blockr-color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.blockr-script-pop__empty {
+  padding: 6px 8px;
+  color: var(--blockr-color-text-muted);
+}
+
+/* ---- a name that is no input (sb_foreign_frames()) ------------------------- */
+.blockr-script .cm-not-input {
+  text-decoration: underline wavy var(--blockr-color-warning, #c98a00);
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+}
+
+/* ---- wide: the editor takes the column (gear-editor.js sets min-height) -- */
+.blockr-script-side__tray .blockr-script-tray .blockr-script .cm-editor {
+  max-height: none;
+}
+
+/* ---- the sentence above the output while the tray is open ---------------- */
+.blockr-script-sentence-out.blockr-script-face--above { display: block; margin: 0 0 8px; }
+.blockr-script-params.blockr-script-face--above { margin: 0 0 12px; width: 100%; container-type: inline-size; }
+
+/* Beside the tray, the output does not bleed to the right edge: the dock's
+   full-width output would otherwise run up to the tray and look cut off. */
+.blockr-script-side.blockr-block-accordion > .accordion-item.blockr-script-side__main > .accordion-collapse,
+.blockr-script-side > .blockr-script-side__main > .accordion-collapse {
+  margin-right: 0;
+}
+
+/* ==== The editor pane =======================================================
+   One framed surface in the tray: a header strip (the input chips and
+   "+ Control"), the code with a quiet gutter, and a status bar
+   (what the block did, and Run). Colours from the design tokens, so the
+   pane follows the board's light or dark theme. */
+.blockr-script-tray .blockr-script-frame {
+  --blockr-script-pane-bar: color-mix(in srgb, var(--blockr-color-bg-subtle, #f3f4f6) 55%, var(--blockr-color-bg-surface, #fff));
+  --blockr-script-mono: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+  border-color: var(--blockr-color-border-default, #e5e7eb);
+  border-radius: var(--blockr-radius-lg, 8px);
+  background: var(--blockr-color-bg-surface, #fff);
+  display: flex;
+  flex-direction: column;
+}
+
+/* -- header strip -- */
+.blockr-script-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 0 6px 0 10px;
+  border-bottom: 1px solid var(--blockr-color-border-default, #e5e7eb);
+  background: var(--blockr-script-pane-bar);
+  font-size: 12px;
+}
+.blockr-script-head__inputs { flex: 1; min-width: 0; }
+.blockr-script-head .blockr-script-inputs { margin: 0; flex-wrap: nowrap; width: 100%; }
+.blockr-script-head .blockr-script-chip,
+.blockr-script-head .blockr-script-tool {
+  height: 22px;
+  padding: 0 7px;
+  border-radius: var(--blockr-radius-md, 6px);
+  font-size: 11.5px;
+}
+.blockr-script-head .blockr-script-chip__name { font-family: var(--blockr-script-mono); }
+.blockr-script-head .blockr-script-tool { font-weight: 500; white-space: nowrap; }
+
+/* -- code -- */
+.blockr-script-tray .blockr-script .cm-scroller {
+  font-family: var(--blockr-script-mono);
+  font-size: 12.5px;
+  line-height: 20px;
+}
+.blockr-script-tray .blockr-script .cm-content { padding: 8px 0; }
+.blockr-script-tray .blockr-script .cm-gutters {
+  background: transparent;
+  border-right: none;
+  color: var(--blockr-grey-400, #9ca3af);
+}
+.blockr-script-tray .blockr-script .cm-lineNumbers .cm-gutterElement { padding: 0 4px 0 8px; }
+.blockr-script-tray .blockr-script .cm-activeLine {
+  background: color-mix(in srgb, var(--blockr-color-bg-accent-subtle, #eef4ff) 45%, transparent);
+}
+.blockr-script-tray .blockr-script .cm-activeLineGutter {
+  background: transparent;
+  color: var(--blockr-color-text-default);
+}
+/* A control line is marked by its glyph in the gutter only: no band across
+   the code. */
+.blockr-script-tray .blockr-script .cm-input-line {
+  background: none;
+  box-shadow: none;
+}
+.blockr-script-tray .blockr-script .cm-activeLine.cm-input-line {
+  background: color-mix(in srgb, var(--blockr-color-bg-accent-subtle, #eef4ff) 45%, transparent);
+}
+.blockr-script-tray .blockr-script .cm-input-glyph { color: color-mix(in srgb, var(--blockr-color-border-accent, #2563eb) 55%, transparent); }
+.blockr-script-tray .blockr-script .cm-input-glyph[data-kind="select"]::after { border-top-color: color-mix(in srgb, var(--blockr-color-border-accent, #2563eb) 55%, transparent); }
+
+/* -- status bar -- */
+.blockr-script-tray .blockr-script-footer {
+  min-height: 30px;
+  padding: 3px 5px 3px 10px;
+  background: var(--blockr-script-pane-bar);
+  border-top-color: var(--blockr-color-border-default, #e5e7eb);
+  font-size: 11.5px;
+}
+.blockr-script-tray .blockr-script-footer__label {
+  color: var(--blockr-color-text-muted);
+}
+.blockr-script-footer__label[class*="blockr-script-status--"]::before {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-right: 7px;
+  vertical-align: 0;
+  background: var(--blockr-color-success, #2da44e);
+}
+.blockr-script-footer__label.blockr-script-status--dirty::before {
+  background: var(--blockr-grey-400, #9ca3af);
+}
+.blockr-script-footer .blockr-script-footer__label.blockr-script-status--warn {
+  color: var(--blockr-color-text-warning, #b45309);
+}
+.blockr-script-footer__label.blockr-script-status--warn::before {
+  background: var(--blockr-amber-500, #f59e0b);
+}
+.blockr-script-footer .blockr-script-footer__label.blockr-script-status--error {
+  color: var(--blockr-color-text-danger, #b91c1c);
+}
+.blockr-script-footer__label.blockr-script-status--error::before {
+  background: var(--blockr-red-600, #dc2626);
+}
+
+/* Run: the one solid button in the pane. */
+.blockr-script-tray .blockr-script-footer .blockr-script-btn--run {
+  height: 22px;
+  padding: 0 10px;
+  border: none;
+  border-radius: var(--blockr-radius-md, 6px);
+  background: var(--blockr-color-bg-accent, #2563eb);
+  color: var(--blockr-color-text-on-accent, #fff);
+  font-weight: 600;
+  font-size: 11.5px;
+}
+.blockr-script-tray .blockr-script-footer .blockr-script-btn--run:hover {
+  background: var(--blockr-color-bg-accent-hover, #1d4ed8);
+}
+.blockr-script-tray .blockr-script-footer .blockr-script-btn--run[disabled] {
+  background: var(--blockr-grey-200, #e5e7eb);
+  color: var(--blockr-grey-400, #9ca3af);
+}
+
+/* ==== The divider between output and editor (gear-editor.js) ============== */
+.blockr-script-side > .blockr-script-side__tray { position: relative; }
+.blockr-script-splitter {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -13px;
+  width: 10px;
+  cursor: col-resize;
+  z-index: 2;
+  /* a drag on a touch screen moves the divider, not the page */
+  touch-action: none;
+}
+.blockr-script-splitter:focus { outline: none; }
+.blockr-script-splitter::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 4px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--blockr-color-border-accent, #93b4f0);
+  opacity: 0;
+  transition: opacity .15s;
+}
+.blockr-script-splitter:hover::after,
+.blockr-script-splitter:focus-visible::after,
+.blockr-script-splitter.is-dragging::after { opacity: .8; }
+/* While the divider is dragged (the class is on <html> only for that time):
+   no text selection, and frames let the pointer through, so an html_page in
+   the output does not take the drag. */
+html.blockr-script-resizing { cursor: col-resize; user-select: none; }
+html.blockr-script-resizing iframe { pointer-events: none; }
+
+/* ==== A result printed as text (render_dynamic_output) ==================== */
+.blockr-script-text-output {
+  margin: 0;
+  padding: 10px;
+  border-radius: var(--blockr-radius-sm, 4px);
+  background: var(--blockr-color-bg-subtle, #f8f9fa);
+  color: var(--blockr-color-text-default, #111827);
+  overflow-x: auto;
+}
