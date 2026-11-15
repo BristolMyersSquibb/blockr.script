@@ -55,7 +55,7 @@
 <code><a href="../reference/sentence_data.html">sentence_data()</a></code>: a generic for the data frame the sentence’s data tokens read. A <code>dm</code> input now gives <code>{label(col)}</code> its column labels.</li>
 <li>
 <code><a href="../reference/script_expr.html">script_expr()</a></code>: a script as one expression with the control values written in, for a place that has no block, such as a report.</li>
-<li>The block shows a thin line under its head row while a script runs for longer than about 300 ms.</li>
+<li>While a script runs for longer than about 300 ms, the result dims and a line above it counts the wait (“computing… 1.2 s”), as blockr.viz’s outputs do.</li>
 <li>A <code>NULL</code> written in a script is kept: <code>x &lt;- NULL</code> no longer fails with “incorrect number of arguments”, and <code>function(a = NULL) NULL</code> keeps its formal and its body.</li>
 <li>On a dock card the rule between the head row and the result is gone while the script tray is closed.</li>
 <li>A list word of the sentence whose menu is open follows the word when R draws it again: the open list takes the new choices and drops a pick that is no longer among them.</li>
