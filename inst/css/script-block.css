@@ -591,7 +591,16 @@
 .blockr-script-busy-line--on { height: 24px; }
 /* On the output itself, so the result fades back in as well as out. */
 .blockr-script-result { transition: opacity 0.15s ease; }
-.blockr-script-result--busy { opacity: 0.45; }
+.blockr-script-result.blockr-script-result--busy { opacity: 0.45; }
+/* Shiny's own fade is off on the result. Shiny fades an output whenever a
+   render function is assigned to it again, and blockr.core assigns one each
+   time a hidden block comes back on screen, with the same result. The result
+   is then kept as it is (sb_keep_output()), but the fade lasted until the
+   flush ended, so a table went pale and came back on every switch of dock
+   tabs. The busy cue above is what shows an evaluation. Shiny derives every
+   part of the fade from this property; the busy rule above is two classes so
+   that it wins over Shiny's `.recalculating` opacity. */
+.blockr-script-result { --shiny-fade-opacity: 1; }
 @media (prefers-reduced-motion: reduce) {
   .blockr-script-busy-line,
   .blockr-script-result { transition: none; }

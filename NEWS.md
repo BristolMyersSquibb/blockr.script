@@ -33,6 +33,9 @@
 - While a script runs for longer than about 300 ms, the result dims and a
   line above it counts the wait ("computing… 1.2 s"), as blockr.viz's
   outputs do.
+- A result no longer goes pale and comes back when its dock tab is shown
+  again. Shiny's fade of a recalculating output is off on the result; the
+  busy cue above is what shows an evaluation.
 - A `NULL` written in a script is kept: `x <- NULL` no longer fails with
   "incorrect number of arguments", and `function(a = NULL) NULL` keeps its
   formal and its body.

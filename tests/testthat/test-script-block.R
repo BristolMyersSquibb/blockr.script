@@ -957,3 +957,25 @@ test_that("a dropped argument elsewhere becomes NULL, not a missing argument", {
   expect_equal(cb_fold(quote(p + if (FALSE) g())), quote(p))
   expect_equal(cb_fold(quote(if (TRUE) 1 else 2)), 1)
 })
+
+test_that("the result output is not faded by Shiny while it recalculates", {
+  # blockr.core assigns the result output again when a hidden block comes
+  # back on screen. The result stays as it is, but Shiny fades an output
+  # each time it is assigned, so the table went pale on every tab switch.
+  ui <- block_ui.script_block("b", new_script_block())
+  expect_match(as.character(ui), "blockr-script-result", fixed = TRUE)
+
+  css <- paste(
+    readLines(system.file("css", "script-block.css", package = "blockr.script")),
+    collapse = "\n"
+  )
+  expect_match(
+    css,
+    "\\.blockr-script-result\\s*\\{[^}]*--shiny-fade-opacity:\\s*1\\s*;"
+  )
+  # The busy cue still dims the result over Shiny's `.recalculating` rule.
+  expect_match(
+    css,
+    "\\.blockr-script-result\\.blockr-script-result--busy\\s*\\{\\s*opacity:"
+  )
+})
