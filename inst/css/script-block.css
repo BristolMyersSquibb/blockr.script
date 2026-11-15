@@ -528,6 +528,85 @@
 
 .blockr-script-sentence { padding: 2px 8px 2px 2px; }
 
+/* ---- Tools of the result, left of the gear ---------------------------------
+   Filled by a result method with result_head() (R/result-head.R). Without a
+   sentence the slot keeps the gear on the right. A link or button put
+   straight into it is an icon button the size of the gear. */
+.blockr-script-gear .blockr-gear-header > .blockr-script-head-tools {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+}
+/* Empty, or the block has no result on screen (script-head.js). */
+.blockr-script-gear .blockr-gear-header > .blockr-script-head-tools:empty,
+.blockr-script-container--no-result .blockr-gear-header > .blockr-script-head-tools {
+  display: none;
+}
+.blockr-script-head-tools > :is(a, button) {
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--blockr-radius-sm, 4px);
+  background: transparent;
+  color: var(--blockr-color-text-muted, #6b7280);
+  font-size: var(--blockr-font-size-sm, 0.8125rem);
+  line-height: 1;
+  text-decoration: none;
+  cursor: pointer;
+}
+.blockr-script-head-tools > :is(a, button):hover {
+  background: var(--blockr-color-bg-hover, #f3f4f6);
+  color: var(--blockr-color-text-default, #111827);
+}
+.blockr-script-head-tools > :is(a, button):focus-visible {
+  outline: none;
+  border-color: var(--blockr-color-border-accent, #2563eb);
+  box-shadow: var(--blockr-focus-ring, 0 0 0 3px rgba(37, 99, 235, 0.12));
+}
+.blockr-script-head-tools > :is(a, button) svg { width: 15px; height: 15px; }
+
+/* ---- Busy cue ---------------------------------------------------------------
+   A thin line under the head row while the script is being evaluated. The
+   class is set by script-head.js, about 300 ms after R started. */
+.blockr-script-gear .blockr-gear-header { position: relative; }
+.blockr-script-container--busy .blockr-gear-header::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -6px;
+  height: 2px;
+  border-radius: 1px;
+  background:
+    linear-gradient(
+      90deg,
+      transparent,
+      var(--blockr-color-border-accent, #2563eb) 50%,
+      transparent
+    ) 0 0 / 40% 100% no-repeat,
+    var(--blockr-color-border, #e5e7eb);
+  animation: blockr-script-busy 1.1s linear infinite;
+}
+@keyframes blockr-script-busy {
+  from { background-position: -70% 0, 0 0; }
+  to { background-position: 170% 0, 0 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .blockr-script-container--busy .blockr-gear-header::after {
+    animation: none;
+    background: var(--blockr-color-border-accent, #2563eb);
+    opacity: 0.5;
+  }
+}
+
 .blockr-script-sentence__title {
   font-size: var(--blockr-font-size-lg, 1rem);
   font-weight: 600;
@@ -738,11 +817,6 @@ html.blockr-script-no-menu .blockr-script-sentence:has([data-slot-kind="select"]
   text-decoration-thickness: 1px;
 }
 
-/* ---- wide: the editor takes the column (gear-editor.js sets min-height) -- */
-.blockr-script-side__tray .blockr-script-tray .blockr-script .cm-editor {
-  max-height: none;
-}
-
 /* ---- the sentence above the output while the tray is open ---------------- */
 .blockr-script-sentence-out.blockr-script-face--above { display: block; margin: 0 0 8px; }
 .blockr-script-params.blockr-script-face--above { margin: 0 0 12px; width: 100%; container-type: inline-size; }
@@ -923,4 +997,16 @@ html.blockr-script-resizing iframe { pointer-events: none; }
   background: var(--blockr-color-bg-subtle, #f8f9fa);
   color: var(--blockr-color-text-default, #111827);
   overflow-x: auto;
+}
+
+/* ---- On a dock card: head row and result are one unit -----------------------
+   blockr.dock draws a rule and a gap between a card's inputs section, where
+   the head row and the controls are, and its outputs section, where the
+   result is. For a script block the sentence is the result's title, so the
+   rule goes while the tray is closed. With the tray open the rule stays: it
+   then separates the editor from the block's face. The selector names the
+   dock's sections; where they are not found, the dock's own look applies. */
+.blockr-block-sections > .blockr-block-section[data-value="inputs"]:not([hidden], .is-closing):has(.blockr-script-container):not(:has(.blockr-gear-btn.blockr-gear-active)) ~ .blockr-block-section[data-value="outputs"] > .blockr-block-section-body {
+  padding-top: 0;
+  background: none;
 }

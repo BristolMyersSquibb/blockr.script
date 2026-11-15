@@ -6,6 +6,7 @@
 \alias{gear_editor_dep}
 \alias{sentence_dep}
 \alias{script_tools_dep}
+\alias{script_head_dep}
 \title{HTML dependencies of the script block}
 \usage{
 script_editor_dep()
@@ -17,6 +18,8 @@ gear_editor_dep()
 sentence_dep()
 
 script_tools_dep()
+
+script_head_dep()
 }
 \value{
 An \code{\link[htmltools:htmlDependency]{htmltools::htmlDependency()}}.

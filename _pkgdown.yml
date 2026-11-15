@@ -21,7 +21,14 @@ reference:
   - inline_r
 
 - title: Extending
-  desc: Teach the script block to draw another package's result class.
+  desc: >
+    Draw another package's result class, and build a block of your own on
+    the script block.
   contents:
   - block_result_output
+  - block_result_update
+  - result_head
+  - result_titles
+  - sentence_data
+  - script_expr
   - register_script_blocks

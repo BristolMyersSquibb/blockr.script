@@ -12,9 +12,7 @@
  *        data-multiple="true|false"
  *        data-options='[{"value":"a","label":"A"}, ...]'
  *        data-selected='"a"'  (single) | '["a","b"]' (multi)
- *        data-placeholder="Select…"
- *        data-single-line="true|false"
- *        data-tag-chars="16"></div>
+ *        data-placeholder="Select…"></div>
  *
  * Depends on: blockr-core.js, blockr-select.js (via blockr_select_dep()).
  */
@@ -36,13 +34,6 @@
     const options = parseJSON(el.getAttribute('data-options'), []);
     const selected = parseJSON(el.getAttribute('data-selected'), multiple ? [] : null);
     const placeholder = el.getAttribute('data-placeholder') || '';
-    // The params grid sizes a row to its tallest field, so a multi-select that
-    // wraps its tags is what makes the generated band tall. One row plus a
-    // "+N" chip instead.
-    const singleLine = el.getAttribute('data-single-line') !== 'false';
-    // Long values are the norm here (arm labels, derived variable names), and
-    // one of them can fill the row on its own.
-    const tagChars = parseInt(el.getAttribute('data-tag-chars'), 10) || 0;
 
     const slot = document.createElement('div');
     el.appendChild(slot);
@@ -53,8 +44,6 @@
       selected: selected,
       placeholder: placeholder,
       reorderable: true,
-      singleLine: multiple && singleLine,
-      maxTagChars: tagChars,
       onChange: () => {
         if (typeof el._fbOnChange === 'function') el._fbOnChange();
       }

@@ -99,3 +99,30 @@ sb_starter_html <- paste(
   ")",
   sep = "\n"
 )
+
+#' Check the starters a constructor was given
+#'
+#' @param starters `NULL`, or a list of `list(label, hint, script)`.
+#' @return `NULL`, or the starters as an unnamed list whose entries have the
+#'   three fields as single strings. A script given as lines is joined.
+#' @noRd
+sb_check_starters <- function(starters) {
+  if (is.null(starters)) {
+    return(NULL)
+  }
+  string <- function(x) is.character(x) && length(x) == 1L && !is.na(x)
+  stopifnot(
+    "`starters` must be a list of starters" =
+      is.list(starters) && all(vapply(starters, is.list, logical(1L)))
+  )
+  lapply(unname(starters), function(s) {
+    if (!string(s$label) || !nzchar(s$label) || !is.character(s$script)) {
+      stop(
+        "Every starter needs a `label` and a `script`.",
+        call. = FALSE
+      )
+    }
+    hint <- if (string(s$hint)) s$hint else ""
+    list(label = s$label, hint = hint, script = cb_script_text(s$script))
+  })
+}

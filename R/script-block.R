@@ -87,7 +87,8 @@
 #' opens its list, a number or text becomes a field, a checkbox toggles. A
 #' clause in `[ ... ]` leaves when its value is empty, and its control is
 #' offered as a `+ label` chip instead. `{n}`, `{label(col)}` and `{col}` read
-#' the first input. The sentence sits in the row with the gear; the controls
+#' the first input, as the data frame [sentence_data()] makes of it. The
+#' sentence sits in the row with the gear; the controls
 #' it names leave the grid, the others stay. A date can be named but stays a
 #' control in the grid. The sentence is shown above any result and is not
 #' part of the exported code.
@@ -108,13 +109,59 @@
 #'   character vector of lines, which is joined with `\n`.
 #' @param values Named list of current control values, restored with a saved
 #'   board. Values for names the script no longer declares are dropped.
+#' @param ... Two arguments are read here, and the rest is passed to
+#'   [blockr.core::new_block()].
+#'
+#'   * `starters`: the scripts "Start from" offers in the editor, as a list
+#'     of `list(label, hint, script)`, where `hint` may be left out. `NULL`,
+#'     the default, keeps the built-in ones.
+#'   * `class`: classes to put in front of `script_block`, for a block built
+#'     on this one.
+#'
+#'   Neither is part of the block's state, which is why they are not named
+#'   arguments: blockr.core saves every named argument of a constructor. A
+#'   restored block gets both from its constructor again.
+#'
+#' @section Building on the script block:
+#' Another package can build a block on this one. Its constructor calls
+#' `new_script_block()` with a `class`, its own default script and, if it
+#' likes, its own `starters`:
+#'
+#' ```r
+#' new_listing_block <- function(script = "my_listing(data)", values = list(),
+#'                               ...) {
+#'   blockr.script::new_script_block(
+#'     script, values,
+#'     starters = my_starters(),
+#'     class = "listing_block",
+#'     ...
+#'   )
+#' }
+#' ```
+#'
+#' The block has the classes `c("listing_block", "script_block", "block")`,
+#' so every method of the script block applies to it. A saved board restores
+#' it through `new_listing_block()`, which therefore takes `script`,
+#' `values` and `...`, no other named argument, and passes `...` on. Register
+#' the constructor with [blockr.core::register_blocks()] as any other block.
+#'
+#' The constructor is found by its arguments: it is the nearest function in
+#' the chain of calls that takes exactly `script`, `values` and `...`. It
+#' may therefore reach `new_script_block()` through a helper of its own.
+#' Where there is no such function, as for `new_script_block(class = "x")`
+#' called at top level, the block is saved with a constructor that keeps the
+#' `class` and the `starters` it was built with.
+#'
+#' What such a block draws is decided by the class of the script's result,
+#' not by the class of the block: see [block_result_output()],
+#' [result_head()] and [result_titles()]. For an input that is not a data
+#' frame, see [sentence_data()].
 #'
 #' @details
 #' A script that does not parse, or that has no statement returning a
 #' result, still gives a block, with a warning. The block then shows that
 #' reason as its error. A saved board that holds such a script loads, and the
 #' script can be repaired in the editor.
-#' @param ... Additional arguments passed to [blockr.core::new_block()].
 #'
 #' @return A block of class `script_block`.
 #'
@@ -156,6 +203,29 @@ new_script_block <- function(script = "n <- 6\n\nutils::head(data, n)",
   stopifnot(length(script) == 1L)
   stopifnot(is.list(values))
 
+  # `starters` and `class` come in `...`: core takes every named argument of
+  # a constructor for a part of the block's state.
+  dots <- list(...)
+  starters <- sb_check_starters(dots$starters)
+  class <- dots$class
+  if (is.null(class)) {
+    class <- character()
+  }
+  stopifnot(is.character(class), !anyNA(class))
+
+  # A plain script block is restored through this function, a block built
+  # on this one through its own constructor. A saved board passes `ctor`
+  # itself.
+  if (is.null(dots$ctor)) {
+    dots$ctor <- if (length(class)) {
+      sb_subclass_ctor(sys.parent(), class, starters)
+    } else {
+      sys.nframe()
+    }
+  }
+  dots$starters <- NULL
+  dots$class <- c(class, "script_block")
+
   # Say so at board build. The block is still built: a saved board holding a
   # broken script has to load, and the block shows the reason as its error.
   problem <- cb_problem(cb_parse(script))
@@ -163,7 +233,7 @@ new_script_block <- function(script = "n <- 6\n\nutils::head(data, n)",
     warning(problem, call. = FALSE)
   }
 
-  blockr.core::new_block(
+  new_block_args <- list(
     server = function(id, ...args) {
       # Purely variadic: see the input naming rule in R/args.R. A direct
       # block_server() call (a test, a block served on its own) may pass
@@ -176,6 +246,12 @@ new_script_block <- function(script = "n <- 6\n\nutils::head(data, n)",
         function(input, output, session) {
           r_script <- shiny::reactiveVal(script)
           r_values <- shiny::reactiveVal(values)
+
+          # What a result method put into the head row. A block that is
+          # removed and added again under the same id starts empty.
+          head <- sb_head(session, sb_head_key(session$ns("")))
+          sb_head_commit(head, SB_HEAD_EMPTY)
+          sb_draw_reset(head$draw)
 
           # `script` is externally controllable, so a write can arrive from the
           # assistant, MCP or a restore as a vector of lines. Collapse it here,
@@ -196,14 +272,15 @@ new_script_block <- function(script = "n <- 6\n\nutils::head(data, n)",
           r_specs <- sb_specs_server(r_parsed, r_inputs, r_values)
 
           r_slot_args <- sb_sentence_server(
-            input, output, session, r_parsed, r_specs, r_values, r_inputs
+            input, output, session, r_script, r_parsed, r_specs, r_values,
+            r_inputs, head
           )
 
           sb_values_server(input, output, session, r_specs, r_values, r_slot_args)
 
           sb_editor_server(
             input, output, session, r_script, r_parsed, r_specs, r_refs,
-            r_inputs
+            r_inputs, starters
           )
 
           r_expr <- sb_expr_server(r_parsed, r_specs, r_values, r_refs)
@@ -232,11 +309,18 @@ new_script_block <- function(script = "n <- 6\n\nutils::head(data, n)",
         # On the page before the first result: it holds the handler for the
         # document an `html_page()` result sends.
         html_page_dep(),
+        script_head_dep(),
         shiny::div(
           class = "blockr-script-container",
+          # The block this head belongs to, for the messages a result sends
+          # from the block's own session (script-head.js).
+          `data-sb-block` = sb_head_key(ns("")),
           gear_editor_ui(
             ns, script,
             head = shiny::uiOutput(ns("sentence"), class = "blockr-script-sentence-out"),
+            tools = shiny::uiOutput(
+              ns("head_tools"), class = "blockr-script-head-tools"
+            ),
             strip = shiny::uiOutput(ns("inputs_ui"),
                                     class = "blockr-script-head__inputs"),
             label = NULL,
@@ -249,18 +333,51 @@ new_script_block <- function(script = "n <- 6\n\nutils::head(data, n)",
         )
       )
     },
-    class = "script_block",
     expr_type = "bquoted",
     allow_empty_state = list(input = TRUE, data = list(...args = 0L)),
-    external_ctrl = "script",
-    ...
+    external_ctrl = "script"
   )
+  do.call(blockr.core::new_block, c(new_block_args, dots))
 }
 
 
 # The server of the block, in four parts. Each takes the reactives it reads
 # and returns the one it adds. All of them run inside the block's module, so
 # their observers belong to its session.
+
+#' The constructor a block built on the script block is restored through
+#'
+#' @param frame The frame `new_script_block()` was called from.
+#' @param class,starters What `new_script_block()` was given.
+#' @return The number of the nearest calling frame whose function takes
+#'   `script`, `values` and `...`, for `blockr.core::new_block()` to resolve.
+#'   Without one, a function of that signature that builds the block with
+#'   `class` and `starters`.
+#' @noRd
+sb_subclass_ctor <- function(frame, class, starters) {
+  parents <- sys.parents()
+  while (frame > 0L) {
+    if (setequal(names(formals(sys.function(frame))),
+                 c("script", "values", "..."))) {
+      return(frame)
+    }
+    up <- parents[[frame]]
+    if (up >= frame) {
+      break
+    }
+    frame <- up
+  }
+  fn <- function(script, values = list(), ...) {
+    new_script_block(script, values, starters = starters, class = class, ...)
+  }
+  # Saved with the board, so it holds the two values and nothing else.
+  environment(fn) <- list2env(
+    list(class = class, starters = starters),
+    parent = asNamespace("blockr.script")
+  )
+  attr(fn, "srcref") <- NULL
+  fn
+}
 
 #' The control specs, following the script and the live inputs
 #'
@@ -302,15 +419,29 @@ sb_specs_server <- function(r_parsed, r_inputs, r_values) {
 
 #' The sentence: the script's `#| title:` lines, with words that are controls
 #'
+#' A result method can add to it (see `result_head()`): titles for the lines
+#' the script does not declare, and whether the head row shows the caption.
+#' The text now on screen is written to `head$resolved`, where
+#' `result_titles()` reads it.
+#'
+#' @param head The block's head state, from `sb_head()`.
 #' @return A reactive with the names of the controls the sentence took over.
 #'   Those leave the grid.
 #' @noRd
-sb_sentence_server <- function(input, output, session, r_parsed, r_specs,
-                               r_values, r_inputs) {
+sb_sentence_server <- function(input, output, session, r_script, r_parsed,
+                               r_specs, r_values, r_inputs, head) {
   ns <- session$ns
 
   r_templates <- shiny::reactive(sb_sentence_templates(r_parsed()$comments))
-  r_slot_args <- shiny::reactive(sb_slot_arg_names(r_specs(), r_templates()))
+
+  # What the head row draws. A caption the result draws itself is left out
+  # here, so a control only the caption names stays in the grid.
+  r_face <- shiny::reactive(
+    sb_face_templates(r_templates(), head$titles(), head$caption())
+  )
+  r_slot_args <- shiny::reactive(
+    sb_slot_arg_names(r_specs(), r_face()$templates)
+  )
 
   # A pick made on a word: `{arg, value}`, written to `values` the way the
   # grid would have written it.
@@ -321,15 +452,45 @@ sb_sentence_server <- function(input, output, session, r_parsed, r_specs,
     }
   })
 
-  # The data tokens ({n}, {label(col)}) read the first input.
+  # The data tokens ({n}, {label(col)}) read the first input, as the data
+  # frame `sentence_data()` makes of it.
   r_first <- shiny::reactive({
     x <- r_inputs()[["data"]]
-    if (sb_is_unavailable(x)) NULL else x
+    if (sb_is_unavailable(x)) {
+      return(NULL)
+    }
+    sb_sentence_data(x, r_script())
   })
 
-  output$sentence <- shiny::renderUI(
-    sb_sentence_ui(r_templates(), r_specs(), r_values(), r_first(), ns("slot"))
+  output$sentence <- shiny::renderUI({
+    face <- r_face()
+    sb_sentence_ui(
+      face$templates, r_specs(), r_values(), r_first(), ns("slot"),
+      fallback = face$fallback
+    )
+  })
+
+  # The empty slot is not displayed, and Shiny would never render an output
+  # it takes for hidden.
+  output$head_tools <- shiny::renderUI(head$tools())
+  shiny::outputOptions(output, "head_tools", suspendWhenHidden = FALSE)
+
+  # The sentence as plain text, for `result_titles()`. An observer, so it is
+  # current also while the head row is not on screen.
+  r_plain <- shiny::reactive(
+    sb_sentence_templates(r_parsed()$comments, ui = FALSE)
   )
+  shiny::observe({
+    resolve <- function(templates) {
+      sb_resolved_titles(
+        templates, head$titles(), r_specs(), r_values(), r_first()
+      )
+    }
+    resolved <- list(ui = resolve(r_templates()), plain = resolve(r_plain()))
+    if (!identical(resolved, shiny::isolate(head$resolved()))) {
+      head$resolved(resolved)
+    }
+  })
 
   r_slot_args
 }
@@ -386,11 +547,12 @@ sb_values_server <- function(input, output, session, r_specs, r_values,
 #'
 #' Nothing here is built until the tray has been opened once: a block set up
 #' by the assistant, whose tray nobody opens, costs nothing. gear-editor.js
-#' sets `tray_opened`, and it stays set when the tray closes.
+#' sets `tray_opened` when the tray opens or the pointer rests on its gear,
+#' and it stays set when the tray closes.
 #'
 #' @noRd
 sb_editor_server <- function(input, output, session, r_script, r_parsed,
-                             r_specs, r_refs, r_inputs) {
+                             r_specs, r_refs, r_inputs, starters = NULL) {
   ns <- session$ns
 
   r_opened <- shiny::reactive(isTRUE(input$tray_opened))
@@ -460,15 +622,34 @@ sb_editor_server <- function(input, output, session, r_script, r_parsed,
   # "+ Control" offers a title sentence that names the first control.
   r_control <- sb_distinct(shiny::reactive(sb_first_control(r_specs())))
 
+  # What a chip's search lists and what "Start from" offers go to the browser
+  # as messages, not in the row's markup: the row is drawn again whenever the
+  # first control changes, and the lists are many times its size. The scripts
+  # of "Start from" are sent once per session, see `sb_starters_key()`.
+  shiny::observe({
+    session$sendCustomMessage(
+      "blockr-script-tools",
+      list(id = ns("fn_code"), cols = sb_tools_cols(r_info()))
+    )
+  })
+
+  r_starters_key <- shiny::reactiveVal(NULL)
+  shiny::observe({
+    shiny::req(r_opened())
+    r_starters_key(sb_starters_key(session, starters))
+  })
+
   # The row above the editor: input chips, "+ Control", "Start from".
-  output$inputs_ui <- shiny::renderUI(
+  output$inputs_ui <- shiny::renderUI({
+    shiny::req(r_starters_key())
     sb_inputs_ui(
       r_info(), ns("fn_code"),
       control = r_control(),
       dims = shiny::isolate(r_dims()),
-      dims_id = function(i) ns(sb_chip_dims_id(i))
+      dims_id = function(i) ns(sb_chip_dims_id(i)),
+      starters_key = r_starters_key()
     )
-  )
+  })
   shiny::outputOptions(output, "inputs_ui", suspendWhenHidden = FALSE)
 
   # A name the script reads that is no input but a data frame from a package,
@@ -562,9 +743,11 @@ sb_expr_server <- function(r_parsed, r_specs, r_values, r_refs) {
 #' @param dims_id A function of the chip's position giving the id of a text
 #'   output. With it the size is that output, so it can change without the
 #'   chips being built again.
+#' @param starters_key The key the browser holds the scripts of "Start from"
+#'   under, from `sb_starters_key()`.
 #' @noRd
 sb_inputs_ui <- function(info, editor_id, control = NULL, dims = NULL,
-                         dims_id = NULL) {
+                         dims_id = NULL, starters_key = NULL) {
   chips <- if (length(info)) {
     lapply(seq_along(info), function(i) {
       x <- info[[i]]
@@ -574,9 +757,6 @@ sb_inputs_ui <- function(info, editor_id, control = NULL, dims = NULL,
         class = "blockr-script-chip",
         `data-editor` = editor_id,
         `data-insert` = sb_symbol(x$name),
-        `data-cols` = as.character(
-          jsonlite::toJSON(x$cols, auto_unbox = TRUE)
-        ),
         `data-what` = x$what,
         # A chip with something to search opens a list. One without inserts
         # its name.
@@ -638,14 +818,54 @@ sb_inputs_ui <- function(info, editor_id, control = NULL, dims = NULL,
         class = "blockr-script-tool blockr-script-start",
         `aria-haspopup` = "menu",
         `data-editor` = editor_id,
-        `data-starters` = as.character(
-          jsonlite::toJSON(sb_starters(), auto_unbox = TRUE)
-        ),
+        `data-starters-key` = starters_key,
         `data-note` = "Replaces the script. Undo brings it back.",
         "Start from"
       ),
     )
   )
+}
+
+#' What each chip's search lists, by the name the chip inserts
+#'
+#' @param info The inputs, from `sb_input_info()`.
+#' @return A named list of the inputs' `cols`. The names are the chips'
+#'   `data-insert`.
+#' @noRd
+sb_tools_cols <- function(info) {
+  out <- lapply(info, `[[`, "cols")
+  names(out) <- vapply(info, function(x) sb_symbol(x$name), character(1L))
+  out
+}
+
+#' The key of a list of starters in this session, sending the list if new
+#'
+#' Blocks of one kind offer the same scripts, and a board can hold many of
+#' them. The first block of a session whose tray opens sends the scripts, and
+#' every later one with the same list only names the key.
+#'
+#' @param session The block's session. The lists sent so far are kept in its
+#'   `userData`, which all blocks of a session share.
+#' @param starters What "Start from" offers, `NULL` for the built-in scripts.
+#' @return The key, a string.
+#' @noRd
+sb_starters_key <- function(session, starters = NULL) {
+  if (is.null(starters)) {
+    starters <- sb_starters()
+  }
+  sent <- session$userData$blockr_script_starters
+  for (i in seq_along(sent)) {
+    if (identical(sent[[i]], starters)) {
+      return(paste0("s", i))
+    }
+  }
+  key <- paste0("s", length(sent) + 1L)
+  session$userData$blockr_script_starters <- c(sent, list(starters))
+  session$sendCustomMessage(
+    "blockr-script-tools",
+    list(key = key, starters = starters)
+  )
+  key
 }
 
 # The id, without namespace, of the text output that holds a chip's size.
@@ -992,6 +1212,7 @@ blockr_ser.script_block <- function(x, state = NULL, ...) {
 #' @importFrom blockr.core block_eval
 #' @export
 block_eval.script_block <- function(x, expr, env, ...) {
+  sb_busy(shiny::getDefaultReactiveDomain())
   eval_with_plot_capture(expr, env)
 }
 
@@ -1001,10 +1222,29 @@ block_ui.script_block <- function(id, x, ...) {
   shiny::uiOutput(shiny::NS(id, "result"))
 }
 
+#' @importFrom blockr.core block_render_trigger
+#' @export
+block_render_trigger.script_block <- function(x,
+                                              session = blockr.core::get_session()) {
+  # Core calls this at the start of every run of its render observer, also
+  # of a run that ends without a result (R/result-output.R).
+  sb_draw_step(sb_head(session, session$ns(""))$draw)
+  NextMethod()
+}
+
 #' @importFrom blockr.core block_output
 #' @export
 block_output.script_block <- function(x, result, session) {
-  block_result_output(result, x, session)
+  # The head row starts empty for every render. What the method asks for
+  # with result_head() is collected and written once, when it returns.
+  head <- sb_head(session, session$ns(""))
+  head$stage$new <- SB_HEAD_EMPTY
+  head$stage$open <- TRUE
+  on.exit({
+    head$stage$open <- FALSE
+    sb_head_commit(head, head$stage$new)
+  })
+  sb_draw_result(head, result, x, session)
 }
 
 #' A status line that warns: drawn amber in the editor's status bar.

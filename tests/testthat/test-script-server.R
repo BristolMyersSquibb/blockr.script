@@ -313,7 +313,7 @@ test_that("new rows update a chip's size without building the chips again", {
     # a new column is a new chip list
     d(iris[1:7, 1:3])
     session$flushReact()
-    expect_match(output$inputs_ui$html, "Petal.Length", fixed = TRUE)
+    expect_match(output$inputs_ui$html, "Search 3 columns", fixed = TRUE)
     expect_match(output$inputs_ui$html, "7 \u00d7 3", fixed = TRUE)
   }, args = list(`...args` = list(data = d)))
 })

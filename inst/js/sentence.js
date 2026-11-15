@@ -10,9 +10,10 @@
  * R decides which words are live (sb_slot_arg_names) and paints only those
  * with the slot mark; a word that cannot open anything is plain text there
  * and its control stays in the grid. The one thing R cannot see is the menu
- * script in the browser. If Blockr.Select.menu() is missing or has no multi
- * mode, the page says so in every band that has a list word (menuCheck), and
- * a click on such a word throws.
+ * script in the browser. If Blockr.Select.menu() is missing, has no multi
+ * mode or comes from a build without Blockr.Select.list(), the page says so
+ * in every band that has a list word (menuCheck), and a click on such a word
+ * throws.
  *
  * A select or multi-select opens Blockr.Select.menu() (blockr.ui) under the
  * word. A checkbox has no list; the word is the switch. A number or a text
@@ -48,16 +49,46 @@
                         { priority: 'event' });
   }
 
+  // What a band says one of its words opens.
+  function specOf(host, arg) {
+    var specs;
+    try { specs = JSON.parse(host.getAttribute('data-sb-slots') || '{}'); }
+    catch (e) { specs = {}; }
+    return specs[arg];
+  }
+
+  function optionValue(o) {
+    return (typeof o === 'object' && o !== null) ? o.value : o;
+  }
+
+  /* R has redrawn a word while its menu is open: the open list takes the
+   * choices and the picks of the new word. A pick that is no longer among
+   * the choices is dropped. Picks made in a multi menu and not sent yet are
+   * newer than what R drew; the menu keeps those of them that are still
+   * offered. */
+  function follow(menu, spec) {
+    if (!menu || !menu.setOptions || !spec) return;
+    if (spec.kind !== 'select' && spec.kind !== 'multi') return;
+    var options = spec.options || [];
+    var values = options.map(optionValue);
+    var selected;
+    if (spec.kind === 'multi') {
+      selected = (spec.selected || []).filter(function (v) {
+        return values.indexOf(v) >= 0;
+      });
+    } else {
+      selected = values.indexOf(spec.selected) >= 0 ? spec.selected : null;
+    }
+    menu.setOptions(options, selected);
+  }
+
   function open(anchor) {
     var arg = anchor.getAttribute('data-slot-arg');
     var by = anchor.getAttribute('data-slot-by') || 'name';
     var host = anchor.closest('[data-sb-slots]');
     if (!host || !arg) return;
     var inputId = host.getAttribute('data-sb-input');
-    var specs;
-    try { specs = JSON.parse(host.getAttribute('data-sb-slots') || '{}'); }
-    catch (e) { specs = {}; }
-    var spec = specs[arg];
+    var spec = specOf(host, arg);
     if (!spec || !inputId) return;
 
     var key = inputId + '@' + arg;
@@ -84,16 +115,16 @@
     openAnchor = anchor;
     openEl = anchor;
     mark(anchor, true);
-    openMenu = Blockr.Select.menu(anchor, {
+    var menu = Blockr.Select.menu(anchor, {
       mode: multi ? 'multi' : 'single',
       options: spec.options || [],
       selected: multi ? (spec.selected || []) : spec.selected,
       title: spec.label || arg,
       labelFirst: multi || by === 'label',
-      maxTagChars: multi ? 48 : 0,
       searchPlaceholder: 'Filter',
-      // Every pick redraws the band, so the word a multi menu hangs off is
-      // replaced while it stays open. Find it again by input and argument.
+      // R redraws the band when a control or the data changes, so the word
+      // a menu hangs off can be replaced while the menu is open. Find it
+      // again by input and argument, and hand its choices to the open list.
       reanchor: function () {
         var hosts = document.querySelectorAll('[data-sb-slots]');
         for (var i = 0; i < hosts.length; i++) {
@@ -101,9 +132,13 @@
           var word = hosts[i].querySelector('.blockr-slot[data-slot-arg="' + arg + '"]') ||
             hosts[i].querySelector('.blockr-slot-offer[data-slot-arg="' + arg + '"]');
           if (word) {
+            // Once per new word: the list draws itself again with the new
+            // choices, which can ask for the anchor a second time.
+            var fresh = word !== openAnchor;
             mark(word, true);
             openAnchor = word;
             openEl = word;
+            if (fresh) follow(menu, specOf(hosts[i], arg));
             return word;
           }
         }
@@ -120,6 +155,7 @@
         openEl = null;
       }
     });
+    openMenu = menu;
   }
 
   /* A number or a text word turns into a field in place: the word is
@@ -231,6 +267,11 @@
     if (!Blockr.Select.menuMulti) {
       return 'Blockr.Select.menu() has no multi mode: blockr.ui is too old';
     }
+    // The build that has list() is the one whose multi menu shows each pick
+    // once, in the list. An older one draws the picks as tags.
+    if (!Blockr.Select.list) {
+      return 'Blockr.Select.list() is missing: blockr.ui is too old';
+    }
     return null;
   }
 
@@ -242,6 +283,9 @@
     }
     return problem;
   }
+
+  // For tests.
+  window.__blockrScriptSentenceTest = { menuProblem: menuProblem, follow: follow };
 
   if (document.readyState === 'complete') menuCheck();
   else window.addEventListener('load', menuCheck);

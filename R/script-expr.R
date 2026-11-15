@@ -45,6 +45,31 @@ cb_literal <- function(v) {
 }
 
 
+#' Put a value at one position of a call or of a function's formals
+#'
+#' `x[[i]] <- NULL` deletes the element. A `NULL` that is written in the
+#' script (`x <- NULL`, `function(a = NULL) NULL`, `NULL$a`) has to stay, or
+#' the call loses an argument and the function a formal or its body.
+#'
+#' @param x A call or a pairlist.
+#' @param i The position.
+#' @param value What goes there, `NULL` included.
+#' @noRd
+cb_set <- function(x, i, value) {
+  if (is.null(value) && is.pairlist(x)) {
+    # Formals: `[<-` with a list would make them a plain list.
+    x <- as.list(x)
+    x[i] <- list(NULL)
+    x <- as.pairlist(x)
+  } else if (is.null(value)) {
+    x[i] <- list(NULL)
+  } else {
+    x[[i]] <- value
+  }
+  x
+}
+
+
 #' Substitute symbols throughout an expression
 #'
 #' Only value positions are touched: never a call head, never the right side of
@@ -81,7 +106,7 @@ cb_subst <- function(e, subs) {
     fmls <- e[[2L]]
     for (i in seq_along(fmls)) {
       if (!cb_is_empty_sym(fmls[[i]])) {
-        fmls[[i]] <- cb_subst(fmls[[i]], inner)
+        fmls <- cb_set(fmls, i, cb_subst(fmls[[i]], inner))
       }
     }
     # `function()` has NULL formals. `e[[2L]] <- NULL` would delete the
@@ -89,7 +114,7 @@ cb_subst <- function(e, subs) {
     if (!is.null(fmls)) {
       e[[2L]] <- fmls
     }
-    e[[3L]] <- cb_subst(e[[3L]], inner)
+    e <- cb_set(e, 3L, cb_subst(e[[3L]], inner))
     # The srcref would otherwise deparse the pre-substitution source.
     if (length(e) >= 4L) {
       e[[4L]] <- NULL
@@ -105,14 +130,12 @@ cb_subst <- function(e, subs) {
   if (length(e) == 3L && is.name(e[[2L]]) &&
       (identical(e[[1L]], quote(`<-`)) || identical(e[[1L]], quote(`=`)) ||
          identical(e[[1L]], quote(`<<-`)))) {
-    e[[3L]] <- cb_subst(e[[3L]], subs)
-    return(e)
+    return(cb_set(e, 3L, cb_subst(e[[3L]], subs)))
   }
   # `x$name` / `x@name`: the right side is a literal name, not a variable.
   if (length(e) == 3L &&
       (identical(e[[1L]], quote(`$`)) || identical(e[[1L]], quote(`@`)))) {
-    e[[2L]] <- cb_subst(e[[2L]], subs)
-    return(e)
+    return(cb_set(e, 2L, cb_subst(e[[2L]], subs)))
   }
   # `pkg::name` and `pkg:::name`: both sides are literal names.
   if (identical(e[[1L]], quote(`::`)) || identical(e[[1L]], quote(`:::`))) {
@@ -427,4 +450,85 @@ cb_expr <- function(parsed, specs, values = list(), data_name = "data") {
     return(body[[1L]])
   }
   as.call(c(list(quote(`{`)), body))
+}
+
+
+#' A script as one expression
+#'
+#' The code a script block runs, built from the script alone: the controls
+#' are replaced by their values and the lines that declared them are gone.
+#' It is for a place that has the script but no block and no input, such as
+#' the call a report makes.
+#'
+#' A control takes its value from `values`, and the script's own value where
+#' `values` has none. Without an input, a declaration that reads the input,
+#' such as `factor("a", levels = unique(data$col))`, cannot be worked out.
+#' When `values` holds a value for it, that value is written in. When it
+#' does not, the line stays in the expression as code and is evaluated with
+#' the rest.
+#'
+#' @param script The script, as for [new_script_block()].
+#' @param values Named list of control values, as a block's state holds
+#'   them.
+#' @param data The name the expression reads the first input by. Every read
+#'   of `data` in the script becomes a read of this name.
+#' @return An expression, or `NULL` when the script does not parse or has
+#'   no statement left.
+#' @examples
+#' script_expr("n <- 6\n\nutils::head(data, n)", list(n = 3))
+#'
+#' # the levels need the input, the value comes from `values`
+#' script_expr(
+#'   "arm <- factor(\"A\", levels = unique(data$ARM))\nsubset(data, ARM == arm)",
+#'   values = list(arm = "B"),
+#'   data = "adsl"
+#' )
+#' @export
+script_expr <- function(script, values = list(), data = "data") {
+  stopifnot(
+    is.character(script), is.list(values),
+    is.character(data), length(data) == 1L, !is.na(data), nzchar(data)
+  )
+  parsed <- cb_parse(cb_script_text(script))
+  if (!parsed$ok) {
+    return(NULL)
+  }
+  specs <- cb_given_specs(cb_specs(parsed, list(data = NULL), values), values)
+  expr <- cb_expr(parsed, specs, values, data_name = c(data = "data"))
+  if (is.null(expr)) {
+    return(NULL)
+  }
+  # The same step core takes with the input slots of a block.
+  do.call(bquote, list(expr, list(data = as.name(data)), splice = TRUE))
+}
+
+#' Let the given values stand where a declaration could not be read in full
+#'
+#' Without the input, a declaration either fails or gives a control with
+#' fewer choices than it has on the board. A value given for it is then used
+#' as it is: a failed declaration becomes a control that holds the value, and
+#' a select counts the value among its choices.
+#'
+#' @param specs From `cb_specs()`, computed without the input.
+#' @param values The given control values.
+#' @noRd
+cb_given_specs <- function(specs, values) {
+  lapply(specs, function(s) {
+    given <- values[[s$name]]
+    if (is.null(given)) {
+      return(s)
+    }
+    if (is.list(given)) {
+      given <- unlist(given, use.names = FALSE)
+    }
+    if (!cb_spec_ok(s)) {
+      # No kind that cb_coerce() knows, so the value passes through it.
+      return(list(name = s$name, line = s$line, kind = "given",
+                  default = given, error = NULL))
+    }
+    if (identical(s$kind, "select")) {
+      s$choices <- unique(c(as.character(s$choices), as.character(given)))
+    }
+    s
+  })
 }

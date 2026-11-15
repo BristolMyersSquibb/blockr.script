@@ -46,8 +46,53 @@ draws the table through blockr.viz's renderer rather than through gt.
 \section{Called on every re-evaluation}{
 
 blockr.core re-runs \code{block_output()} whenever the block's result changes
-(\code{output_render_observer()}), so a method that creates observers must guard
-them (once per session, keyed on the namespace). Assigning to
-\code{session$output} is idempotent and needs no guard.
+(\code{output_render_observer()}). Assigning to \code{session$output} replaces the
+output and can be done on every call. An observer must be created once per
+block and not once per call, so a method keeps a note that it has made
+them.
+
+That note, and any state the method keeps with it, has to end with the
+block. blockr.core destroys a block's session when the block is removed
+(\code{session$destroy()}). The observers, outputs and reactive values made in
+it are then gone, and Shiny refuses every later read or write of them.
+\code{session$userData} is shared by the whole Shiny session and is not
+cleared, so a note kept there is still found when a block is added again
+under the same id. Remove it in \code{session$onDestroy()}:
+
+\if{html}{\out{<div class="sourceCode r">}}\preformatted{key <- paste0("my_table:", session$ns(""))
+if (is.null(session$userData[[key]])) \{
+  session$userData[[key]] <- TRUE
+  session$onDestroy(function() session$userData[[key]] <- NULL)
+  shiny::observeEvent(session$input$row, my_click(session$input$row))
+\}
+}\if{html}{\out{</div>}}
 }
 
+\section{Updating in place}{
+
+The function a method returns replaces the block's output, so the browser
+draws the result again on every evaluation and what the user did to it
+(a scroll position, a search text) is lost. A result class that can
+change what it has on screen also registers a \code{\link[=block_result_update]{block_result_update()}}
+method.
+}
+
+\section{The head row}{
+
+A method can put its own tools, such as a download button, into the
+block's head row and give the block's sentence a title with
+\code{\link[=result_head]{result_head()}}. It reads the title, subtitle and caption now on screen
+with \code{\link[=result_titles]{result_titles()}}.
+}
+
+\examples{
+\dontrun{
+# In a package with its own table class `my_table`:
+block_result_output.my_table <- function(result, block, session, ...) {
+  shiny::renderUI(draw_my_table(result))
+}
+}
+}
+\seealso{
+\code{\link[=block_result_update]{block_result_update()}}
+}

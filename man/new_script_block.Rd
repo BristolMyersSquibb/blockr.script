@@ -17,7 +17,19 @@ character vector of lines, which is joined with \verb{\\n}.}
 \item{values}{Named list of current control values, restored with a saved
 board. Values for names the script no longer declares are dropped.}
 
-\item{...}{Additional arguments passed to \code{\link[blockr.core:new_block]{blockr.core::new_block()}}.}
+\item{...}{Two arguments are read here, and the rest is passed to
+\code{\link[blockr.core:new_block]{blockr.core::new_block()}}.
+\itemize{
+\item \code{starters}: the scripts "Start from" offers in the editor, as a list
+of \code{list(label, hint, script)}, where \code{hint} may be left out. \code{NULL},
+the default, keeps the built-in ones.
+\item \code{class}: classes to put in front of \code{script_block}, for a block built
+on this one.
+}
+
+Neither is part of the block's state, which is why they are not named
+arguments: blockr.core saves every named argument of a constructor. A
+restored block gets both from its constructor again.}
 }
 \value{
 A block of class \code{script_block}.
@@ -121,7 +133,8 @@ serious <- FALSE  #| label = "serious events only"
 opens its list, a number or text becomes a field, a checkbox toggles. A
 clause in \verb{[ ... ]} leaves when its value is empty, and its control is
 offered as a \code{+ label} chip instead. \code{{n}}, \code{{label(col)}} and \code{{col}} read
-the first input. The sentence sits in the row with the gear; the controls
+the first input, as the data frame \code{\link[=sentence_data]{sentence_data()}} makes of it. The
+sentence sits in the row with the gear; the controls
 it names leave the grid, the others stay. A date can be named but stays a
 control in the grid. The sentence is shown above any result and is not
 part of the exported code.
@@ -141,6 +154,42 @@ every \code{.()} and \code{..()} the script calls itself, such as data.table's
 
 A saved board writes the script as a JSON array, one element per line, so a
 change to the script shows up in a git diff as the lines that changed.
+}
+
+\section{Building on the script block}{
+
+Another package can build a block on this one. Its constructor calls
+\code{new_script_block()} with a \code{class}, its own default script and, if it
+likes, its own \code{starters}:
+
+\if{html}{\out{<div class="sourceCode r">}}\preformatted{new_listing_block <- function(script = "my_listing(data)", values = list(),
+                              ...) \{
+  blockr.script::new_script_block(
+    script, values,
+    starters = my_starters(),
+    class = "listing_block",
+    ...
+  )
+\}
+}\if{html}{\out{</div>}}
+
+The block has the classes \code{c("listing_block", "script_block", "block")},
+so every method of the script block applies to it. A saved board restores
+it through \code{new_listing_block()}, which therefore takes \code{script},
+\code{values} and \code{...}, no other named argument, and passes \code{...} on. Register
+the constructor with \code{\link[blockr.core:register_blocks]{blockr.core::register_blocks()}} as any other block.
+
+The constructor is found by its arguments: it is the nearest function in
+the chain of calls that takes exactly \code{script}, \code{values} and \code{...}. It
+may therefore reach \code{new_script_block()} through a helper of its own.
+Where there is no such function, as for \code{new_script_block(class = "x")}
+called at top level, the block is saved with a constructor that keeps the
+\code{class} and the \code{starters} it was built with.
+
+What such a block draws is decided by the class of the script's result,
+not by the class of the block: see \code{\link[=block_result_output]{block_result_output()}},
+\code{\link[=result_head]{result_head()}} and \code{\link[=result_titles]{result_titles()}}. For an input that is not a data
+frame, see \code{\link[=sentence_data]{sentence_data()}}.
 }
 
 \examples{

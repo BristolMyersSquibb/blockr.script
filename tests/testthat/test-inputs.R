@@ -119,6 +119,11 @@ test_that("a dm chip counts tables and lists each table, then its columns", {
   expect_identical(d$cols[[2L]]$label, "flowers")
   expect_identical(d$cols[[2L]]$of, "data$flowers")
 
+  # Fewer rows leave the list as it is, so it is not sent again.
+  fewer <- sb_describe(dm::dm(flowers = iris[1:10, ], cars = mtcars), "data")
+  expect_identical(d$cols[[1L]]$label, "5 columns")
+  expect_identical(fewer$cols, d$cols)
+
   # a column dropdown from a dm reads the column through its table
   line <- sb_control_templates(list(c(list(name = "data"), d)))[[1L]]$line
   expect_identical(

@@ -2,24 +2,33 @@
 
 S3method(block_eval,script_block)
 S3method(block_output,script_block)
+S3method(block_render_trigger,script_block)
 S3method(block_result_output,default)
 S3method(block_result_output,html_page)
+S3method(block_result_update,default)
 S3method(block_ui,script_block)
 S3method(blockr_ser,script_block)
 S3method(format,html_page)
 S3method(htmltools::as.tags,html_page)
 S3method(print,html_page)
 S3method(print,script_output)
+S3method(sentence_data,default)
 export(block_result_output)
+export(block_result_update)
 export(html_page)
 export(inline_r)
 export(new_prose_block)
 export(new_script_block)
 export(register_script_blocks)
+export(result_head)
+export(result_titles)
+export(script_expr)
+export(sentence_data)
 importFrom(blockr.core,
   arg_string,
   block_eval,
   block_output,
+  block_render_trigger,
   block_ui,
   blockr_ser,
   new_arg_spec,

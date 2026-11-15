@@ -204,7 +204,13 @@ sb_describe_dm <- function(x, ref) {
     of <- paste0(ref, "$", sb_symbol(tb))
     cols <- c(
       cols,
-      list(list(name = tb, type = "tbl", label = sb_dims_df(t), insert = of)),
+      # A table says how many columns it has, not how many rows: what the
+      # search lists is sent again whenever it changes, and a filter upstream
+      # changes the rows of every table.
+      list(list(
+        name = tb, type = "tbl", label = sb_count(ncol(t), "column"),
+        insert = of
+      )),
       lapply(sb_columns(t), function(cl) {
         cl$label <- paste(c(tb, if (nzchar(cl$label)) cl$label), collapse = " \u00b7 ")
         cl$of <- of

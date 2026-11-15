@@ -20,6 +20,9 @@
   // An element that left the page keeps its observers this long, in case it
   // was only moved.
   var GONE_MS = 1000;
+  // How long the pointer rests on the gear before R is told that the tray
+  // is about to open.
+  var REST_MS = 60;
 
   // The divider's width is kept per block id in localStorage. Nothing says
   // when a block is deleted for good, so the number of kept widths is capped
@@ -227,21 +230,24 @@
 
     // Beside the output, the editor takes the full height: it grows until the
     // block reaches the bottom of the panel it scrolls in, or the bottom of
-    // the output beside it if that is lower. A script longer than that sets
-    // the height itself.
+    // the output beside it if that is lower. It stops at the height of that
+    // panel, so the block still fits on screen; a longer script scrolls
+    // inside the editor.
     function fillColumn(on, main) {
       var cm = band.querySelector(".cm-editor");
       if (!cm) return;
       var was = cm.style.minHeight;
       cm.style.minHeight = "";
+      cm.style.maxHeight = "";
       if (!on) return;
       var cont = band.closest(".blockr-script-container") || band;
-      var right = cont.getBoundingClientRect().bottom;
+      var box = cont.getBoundingClientRect();
       var left = 0;
       main.forEach(function (k) {
         left = Math.max(left, k.getBoundingClientRect().bottom);
       });
-      var slack = left - right;
+      var slack = left - box.bottom;
+      var room = window.innerHeight;
       var sc = scroller(host);
       if (sc) {
         var sr = sc.getBoundingClientRect();
@@ -252,12 +258,20 @@
         });
         var free = sr.top + sc.clientHeight - pad - content - 8;
         slack = Math.max(slack, free);
+        room = sc.clientHeight - pad;
       }
+      var fill = "";
       if (slack > 2) {
-        cm.style.minHeight = Math.round(cm.getBoundingClientRect().height + slack) + "px";
+        var h = cm.getBoundingClientRect().height;
+        // What the block shows besides the editor.
+        var rest = box.height - h;
+        var cap = Math.max(h, room - rest - 8);
+        fill = Math.round(Math.min(h + slack, cap)) + "px";
       } else if (was && Math.abs(slack) <= 2) {
-        cm.style.minHeight = was;
+        fill = was;
       }
+      cm.style.minHeight = fill;
+      cm.style.maxHeight = fill;
     }
 
     // --open is on from the start of the slide-in to the end of the
@@ -301,21 +315,47 @@
     var code = band.getAttribute("data-code");
     var opened = band.getAttribute("data-opened-input");
     var told = !!band._blockrScriptTold;
+    // Tell R once that the tray is wanted: what the tray shows about the
+    // inputs is only built from then on.
+    function tell() {
+      if (told || !opened || !window.Shiny || !Shiny.setInputValue) return;
+      told = true;
+      band._blockrScriptTold = true;
+      Shiny.setInputValue(opened, true);
+    }
     var mo = new MutationObserver(function () {
       if (!band.classList.contains("blockr-settings--open")) return;
-      // Tell R once that the tray has been opened: what the tray shows about
-      // the inputs is only built from then on.
-      if (!told && opened && window.Shiny && Shiny.setInputValue) {
-        told = true;
-        band._blockrScriptTold = true;
-        Shiny.setInputValue(opened, true);
-      }
+      tell();
       if (window.Blockr && window.Blockr.Script) {
         window.Blockr.Script.refresh(code);
       }
     });
     mo.observe(band, { attributes: true, attributeFilter: ["class"] });
     watchers.push(mo);
+
+    // R is told ahead of the click, when the pointer rests on the gear or
+    // presses it. What R builds for the tray then takes one flush of the
+    // whole app, and with the head start the chips and the footer are in the
+    // tray when it opens. A pointer that only crosses the gear tells nothing.
+    var gear = document.querySelector('[data-tray="' + esc(band.id) + '"]');
+    if (!gear || told) return;
+    var resting = null;
+    function rest() {
+      clearTimeout(resting);
+      resting = setTimeout(tell, REST_MS);
+    }
+    function left() { clearTimeout(resting); }
+    gear.addEventListener("pointerenter", rest);
+    gear.addEventListener("pointerleave", left);
+    gear.addEventListener("pointerdown", tell);
+    watchers.push({
+      disconnect: function () {
+        clearTimeout(resting);
+        gear.removeEventListener("pointerenter", rest);
+        gear.removeEventListener("pointerleave", left);
+        gear.removeEventListener("pointerdown", tell);
+      }
+    });
   }
 
   // While the tray is shut, the sentence sits in the gear's row and the
@@ -347,7 +387,12 @@
         });
       } else {
         if (sentence && sentence.parentElement !== header) {
-          header.insertBefore(sentence, gear);
+          // Back to the front of the row: left of the result's tools, which
+          // stay next to the gear.
+          header.insertBefore(
+            sentence,
+            header.querySelector(":scope > .blockr-script-head-tools") || gear
+          );
           sentence.classList.remove("blockr-script-face--above");
         }
         if (params && params.parentElement !== cont) {

@@ -849,15 +849,15 @@ test_that("a checkbox field carries a spacer where its label row would be", {
 })
 
 
-test_that("a generated multi-select asks for one row of tags", {
-  # The grid sizes a row to its tallest field, so a select that wraps its tags
-  # is what makes the whole band tall. `data-single-line` is how the field
-  # asks blockr.dplyr's select to keep one row and count the rest on a chip.
+test_that("a generated multi-select passes only what the select reads", {
+  # The select shows its picks as text on one row, so the field has nothing
+  # to ask for about tags.
   spec <- specs_for('x <- factor(c("a", "b"), c("a", "b", "c"))')[[1L]]
   html <- as.character(cb_input_ui(spec, identity))
 
-  expect_match(html, 'data-single-line="true"', fixed = TRUE)
   expect_match(html, 'data-multiple="true"', fixed = TRUE)
+  expect_false(grepl("data-single-line", html, fixed = TRUE))
+  expect_false(grepl("data-tag-chars", html, fixed = TRUE))
 })
 
 

@@ -328,6 +328,8 @@ gear_svg <- function() {
 #'   `code_editor_ui()`.
 #' @param head Optional UI drawn in the gear's row, left of the gear: the
 #'   script's sentence.
+#' @param tools Optional UI between `head` and the gear: the slot a result
+#'   method fills with `result_head()`.
 #' @param strip Optional UI for the editor's header strip (see
 #'   `code_editor_ui()`).
 #' @param side_with Id of the element the open tray sits beside when the block
@@ -337,6 +339,7 @@ gear_svg <- function() {
 #' @noRd
 gear_editor_ui <- function(ns, fn_text, top = NULL, label = "Script",
                            marks = NULL, head = NULL, strip = NULL,
+                           tools = NULL,
                            side_with = sub("-expr-$", "-result", ns(""))) {
   sec_id <- ns("fn-editor")
   tray <- shiny::div(
@@ -360,6 +363,7 @@ gear_editor_ui <- function(ns, fn_text, top = NULL, label = "Script",
     shiny::div(
       class = "blockr-gear-header",
       head,
+      tools,
       shiny::tags$button(
         id = ns("fn-gear-btn"),
         type = "button",

@@ -164,6 +164,38 @@
     });
   }
 
+  // What the menus list comes from R as messages (sb_editor_server() in
+  // R/script-block.R), so the row's markup stays small: per editor the
+  // entries of each chip's search, keyed by the name the chip inserts, and
+  // per key the scripts of "Start from".
+  var lists = { cols: {}, starters: {} };
+
+  function received(msg) {
+    if (!msg) return;
+    if (msg.id && msg.cols) {
+      // Forget the editors that have left the page.
+      Object.keys(lists.cols).forEach(function (id) {
+        if (!document.getElementById(id)) delete lists.cols[id];
+      });
+      lists.cols[msg.id] = msg.cols;
+    }
+    if (msg.key && Array.isArray(msg.starters)) lists.starters[msg.key] = msg.starters;
+  }
+
+  function columnsOf(chip) {
+    var of = lists.cols[chip.getAttribute("data-editor")] || {};
+    var cols = of[chip.getAttribute("data-insert") || ""];
+    return Array.isArray(cols) ? cols : [];
+  }
+
+  function startersOf(btn) {
+    return lists.starters[btn.getAttribute("data-starters-key")] || [];
+  }
+
+  if (window.Shiny && window.Shiny.addCustomMessageHandler) {
+    window.Shiny.addCustomMessageHandler("blockr-script-tools", received);
+  }
+
   function readJson(el, attr) {
     try {
       var x = JSON.parse(el.getAttribute(attr) || "[]");
@@ -176,7 +208,7 @@
   // ---- input chip: search what the input holds ----------------------------
 
   function openColumns(chip) {
-    var cols = readJson(chip, "data-cols");
+    var cols = columnsOf(chip);
     var editor = chip.getAttribute("data-editor");
     var name = chip.getAttribute("data-insert") || "";
     var pop = popover(chip, "blockr-script-pop--cols", "dialog");
@@ -289,7 +321,7 @@
 
   function openStarters(btn) {
     var editor = btn.getAttribute("data-editor");
-    openMenu(btn, "Start from an example script", readJson(btn, "data-starters"), function (s) {
+    openMenu(btn, "Start from an example script", startersOf(btn), function (s) {
       return item(
         [["blockr-script-pop__label", s.label], ["blockr-script-pop__hint", s.hint || ""]],
         function () { replaceScript(editor, s); }

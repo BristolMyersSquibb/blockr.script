@@ -61,6 +61,17 @@ script_tools_dep <- memoise0(function() {
   )
 })
 
+#' @rdname script_editor_dep
+#' @keywords internal
+script_head_dep <- memoise0(function() {
+  htmltools::htmlDependency(
+    name = "blockr-script-head",
+    version = js_version("script-head.js"),
+    src = system.file("js", package = "blockr.script"),
+    script = "script-head.js"
+  )
+})
+
 # The package version with a number taken from the files' contents. The
 # version is part of the asset URL, so a browser never serves a changed
 # script or style sheet from its cache.

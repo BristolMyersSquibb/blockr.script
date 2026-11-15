@@ -11,15 +11,17 @@
 # click opens that control under the word. `[ ... ]` is a clause that leaves
 # when a token inside it is empty, and the control it named is then offered
 # as a `+ Label` chip at the end of its line. `{n}`, `{label(col)}`, `{col}`
-# and `{filters}` read the block's first input, `data`.
+# and `{filters}` read the block's first input, `data`, as the data frame
+# `sentence_data()` makes of it.
 #
 # The sentence sits in the row with the gear, above the grid. A control the
 # sentence names leaves the grid, so there is one live copy of each setting.
 # Select, multi-select, number, text and checkbox can be words; a date stays
 # in the grid and prints as plain text.
 #
-# The sentence is drawn on the face only. It does not reach downloads or
-# reports yet.
+# The sentence is drawn in the head row. A result method reads it as text
+# with `result_titles()`, for a download or a caption it draws itself, and
+# can give titles for the lines the script leaves out (`result_head()`).
 
 
 # --- the template walk, copied from blockr.viz ---------------------------------
@@ -293,8 +295,10 @@ sb_or <- function(x, y) if (is.null(x)) y else x
 #'
 #' @param lines The script's `#|` comments that stand on a line of their
 #'   own (`comments` in the result of `cb_parse()`), or source lines.
+#' @param ui Whether the `ui_*` lines count. They are meant for the app, so
+#'   a download or a report reads the sentence without them.
 #' @noRd
-sb_sentence_templates <- function(lines) {
+sb_sentence_templates <- function(lines, ui = TRUE) {
   out <- list(
     title = NULL, subtitle = NULL, caption = NULL,
     ui_title = NULL, ui_subtitle = NULL, ui_caption = NULL
@@ -318,6 +322,9 @@ sb_sentence_templates <- function(lines) {
   # The face shows the ui_ variants: title and caption replace, a subtitle
   # line is added to.
   face <- out[SB_TIERS]
+  if (!isTRUE(ui)) {
+    return(face)
+  }
   if (!is.null(out$ui_title)) {
     face$title <- out$ui_title
   }
@@ -591,9 +598,15 @@ sb_apply_slot <- function(msg, specs, values) {
 #' @param specs,values The block's control specs and current values.
 #' @param data The block's first input, for the data tokens.
 #' @param slot_input The namespaced input id picks are sent to.
+#' @param fallback Plain titles for the lines the script does not declare,
+#'   keyed by tier. They are drawn as they are, with no words to click.
 #' @noRd
-sb_sentence_ui <- function(templates, specs, values, data, slot_input) {
-  if (!sb_has_sentence(templates)) {
+sb_sentence_ui <- function(templates, specs, values, data, slot_input,
+                           fallback = list()) {
+  fallback <- fallback[setdiff(
+    names(fallback), names(Filter(Negate(is.null), templates[SB_TIERS]))
+  )]
+  if (!sb_has_sentence(templates) && !length(fallback)) {
     return(NULL)
   }
   if (!is.data.frame(data)) {
@@ -605,7 +618,12 @@ sb_sentence_ui <- function(templates, specs, values, data, slot_input) {
   args <- sb_title_args(specs, values)
   slots <- sb_slot_specs(specs, values, slot_args, data, listed)
 
-  paint <- function(cls, template) {
+  paint <- function(tier) {
+    cls <- paste0("blockr-script-sentence__", tier)
+    template <- templates[[tier]]
+    if (is.null(template) && !is.null(fallback[[tier]])) {
+      return(htmltools::tags$div(class = cls, .noWS = "inside", fallback[[tier]]))
+    }
     if (is.null(template) || !nzchar(template)) {
       return(NULL)
     }
@@ -661,9 +679,9 @@ sb_sentence_ui <- function(templates, specs, values, data, slot_input) {
     do.call(htmltools::tags$div, c(list(class = cls, .noWS = "inside"), merged))
   }
 
-  title <- paint("blockr-script-sentence__title", templates$title)
-  subtitle <- paint("blockr-script-sentence__subtitle", templates$subtitle)
-  caption <- paint("blockr-script-sentence__caption", templates$caption)
+  title <- paint("title")
+  subtitle <- paint("subtitle")
+  caption <- paint("caption")
   if (is.null(title) && is.null(subtitle) && is.null(caption)) {
     return(NULL)
   }
@@ -675,4 +693,153 @@ sb_sentence_ui <- function(templates, specs, values, data, slot_input) {
     `data-sb-input` = slot_input,
     title, subtitle, caption
   )
+}
+
+
+# --- what a result method adds and reads ------------------------------------
+
+#' The templates and fallback titles the head row draws
+#'
+#' @param templates From `sb_sentence_templates()`.
+#' @param fallback The titles a result method gave, keyed by tier.
+#' @param caption Whether the head row draws the caption. When the result
+#'   draws it, the caption leaves both lists.
+#' @return A list with `templates` and `fallback`.
+#' @noRd
+sb_face_templates <- function(templates, fallback = list(), caption = TRUE) {
+  if (!isTRUE(caption)) {
+    templates["caption"] <- list(NULL)
+    fallback <- fallback[setdiff(names(fallback), "caption")]
+  }
+  list(templates = templates, fallback = fallback)
+}
+
+#' One line of the sentence as plain text, or `NULL` when it is empty
+#' @noRd
+sb_sentence_text <- function(template, data, args) {
+  template <- gsub(SB_SLOT_LIST_RE, "{@\\1}", template, perl = TRUE)
+  parts <- title_template_parts(template, data, args)
+  text <- paste(
+    vapply(parts, function(p) sb_or(p$text, ""), character(1L)),
+    collapse = ""
+  )
+  text <- trimws(text)
+  if (nzchar(text)) text else NULL
+}
+
+#' The sentence as plain text: what `result_titles()` returns
+#'
+#' @param templates From `sb_sentence_templates()`.
+#' @param fallback The titles a result method gave, keyed by tier.
+#' @param specs,values The block's control specs and current values.
+#' @param data The sentence's data frame, from `sb_sentence_data()`.
+#' @return A list with `title`, `subtitle`, `caption` (a string or `NULL`),
+#'   `filters` (a character vector), `declared` (the tiers the script has a
+#'   line for) and `templates` (those lines as written, keyed by tier).
+#' @noRd
+sb_resolved_titles <- function(templates, fallback = list(), specs = list(),
+                               values = list(), data = NULL) {
+  if (!is.data.frame(data)) {
+    data <- data.frame()
+  }
+  args <- sb_title_args(specs, values)
+  out <- SB_NO_TITLES
+  for (tier in SB_TIERS) {
+    template <- templates[[tier]]
+    text <- if (is.null(template)) {
+      fallback[[tier]]
+    } else if (nzchar(template)) {
+      sb_sentence_text(template, data, args)
+    }
+    out[tier] <- list(text)
+  }
+  trail <- attr(data, "blockr_filters", exact = TRUE)
+  trail <- as.character(trail[!is.na(trail) & nzchar(trail)])
+  out$filters <- trail
+  written <- Filter(Negate(is.null), templates[SB_TIERS])
+  out$declared <- as.character(names(written))
+  # An empty selection keeps an empty `names` attribute.
+  out$templates <- if (length(written)) written else list()
+  out
+}
+
+#' The data frame the sentence reads
+#'
+#' The data tokens of a sentence (`{n}`, `{label(col)}`, `{col}`,
+#' `{filters}`) and the column labels in the menu of a word read a data
+#' frame. The script block calls this generic on its first input to get one,
+#' so a package whose blocks hand on something else can say what the
+#' sentence sees.
+#'
+#' The default method returns a data frame as it is. A `dm` gives one data
+#' frame with the columns of all its tables side by side and no rows, with
+#' the column labels kept. Where two tables have a column of the same name,
+#' the first table's is used. `{label(col)}` then works for a column of any
+#' table, and `{n}` is 0. Anything else gives `NULL`: the data tokens are
+#' empty then, and a clause in `[ ... ]` that holds one leaves.
+#'
+#' A method returns a data frame or `NULL`. A character vector in the
+#' attribute `blockr_filters` of that data frame is the filter trail that
+#' `{filters}` prints and that [result_titles()] returns as `filters`.
+#'
+#' @param x The block's first input.
+#' @param script The block's script, one string. A method can read it to
+#'   answer for the tables the script names.
+#' @param ... Not used by the default method.
+#' @return A data frame, or `NULL` when the sentence has nothing to read.
+#' @examples
+#' sentence_data(datasets::iris[1:3, ])
+#' sentence_data("not a data frame")
+#'
+#' \dontrun{
+#' # A package whose blocks hand on a dm with a filter trail
+#' sentence_data.dm <- function(x, script = NULL, ...) {
+#'   out <- NextMethod()
+#'   attr(out, "blockr_filters") <- my_filter_trail(x)
+#'   out
+#' }
+#' }
+#' @export
+sentence_data <- function(x, script = NULL, ...) {
+  UseMethod("sentence_data")
+}
+
+#' @rdname sentence_data
+#' @export
+sentence_data.default <- function(x, script = NULL, ...) {
+  if (is.data.frame(x)) {
+    return(x)
+  }
+  if (inherits(x, "dm") && requireNamespace("dm", quietly = TRUE)) {
+    return(sb_dm_columns(x))
+  }
+  NULL
+}
+
+# The columns of a dm's tables, side by side, with no rows. `x[0, ]` would
+# drop the labels, so each column is cut and given its label back.
+sb_dm_columns <- function(x) {
+  tbls <- tryCatch(dm::dm_get_tables(x), error = function(e) list())
+  cols <- list()
+  for (tbl in tbls) {
+    # A table in a database is not read for this.
+    if (!is.data.frame(tbl)) {
+      next
+    }
+    for (nm in setdiff(names(tbl), names(cols))) {
+      col <- tbl[[nm]]
+      empty <- col[0L]
+      attr(empty, "label") <- attr(col, "label", exact = TRUE)
+      cols[[nm]] <- empty
+    }
+  }
+  structure(cols, names = names(cols), class = "data.frame",
+            row.names = integer())
+}
+
+#' `sentence_data()` for the server: a method that fails gives `NULL`
+#' @noRd
+sb_sentence_data <- function(x, script = NULL) {
+  out <- tryCatch(sentence_data(x, script = script), error = function(e) NULL)
+  if (is.data.frame(out)) out else NULL
 }
