@@ -574,37 +574,27 @@
 .blockr-script-head-tools > :is(a, button) svg { width: 15px; height: 15px; }
 
 /* ---- Busy cue ---------------------------------------------------------------
-   A thin line under the head row while the script is being evaluated. The
-   class is set by script-head.js, about 300 ms after R started. */
-.blockr-script-gear .blockr-gear-header { position: relative; }
-.blockr-script-container--busy .blockr-gear-header::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -6px;
-  height: 2px;
-  border-radius: 1px;
-  background:
-    linear-gradient(
-      90deg,
-      transparent,
-      var(--blockr-color-border-accent, #2563eb) 50%,
-      transparent
-    ) 0 0 / 40% 100% no-repeat,
-    var(--blockr-color-border, #e5e7eb);
-  animation: blockr-script-busy 1.1s linear infinite;
+   While the script is being evaluated, the result dims and a line above it
+   counts the wait ("computing… 1.2 s"), as blockr.viz's outputs do. Both are
+   set by script-head.js, about 300 ms after R started. */
+.blockr-script-busy-line {
+  height: 0;
+  overflow: hidden;
+  padding: 0 2px;
+  line-height: 18px;
+  font-size: var(--blockr-font-size-xs, 0.75rem);
+  color: var(--blockr-color-text-muted, #6b7280);
+  font-variant-numeric: tabular-nums;
+  transition: height 0.15s ease;
 }
-@keyframes blockr-script-busy {
-  from { background-position: -70% 0, 0 0; }
-  to { background-position: 170% 0, 0 0; }
-}
+/* The line opens rather than appears, so the result slides down under it. */
+.blockr-script-busy-line--on { height: 24px; }
+/* On the output itself, so the result fades back in as well as out. */
+.blockr-script-result { transition: opacity 0.15s ease; }
+.blockr-script-result--busy { opacity: 0.45; }
 @media (prefers-reduced-motion: reduce) {
-  .blockr-script-container--busy .blockr-gear-header::after {
-    animation: none;
-    background: var(--blockr-color-border-accent, #2563eb);
-    opacity: 0.5;
-  }
+  .blockr-script-busy-line,
+  .blockr-script-result { transition: none; }
 }
 
 .blockr-script-sentence__title {

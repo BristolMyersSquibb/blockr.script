@@ -1219,7 +1219,7 @@ block_eval.script_block <- function(x, expr, env, ...) {
 #' @importFrom blockr.core block_ui
 #' @export
 block_ui.script_block <- function(id, x, ...) {
-  shiny::uiOutput(shiny::NS(id, "result"))
+  shiny::uiOutput(shiny::NS(id, "result"), class = "blockr-script-result")
 }
 
 #' @importFrom blockr.core block_render_trigger

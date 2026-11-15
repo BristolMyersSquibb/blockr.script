@@ -7,9 +7,10 @@
 //
 //   busy cue   R sends "blockr-script-busy" when it starts to evaluate the
 //              script and again after the flush that follows, when the new
-//              result or the error has gone out. The cue shows only when the
-//              end takes longer than DELAY to arrive, so a fast script does
-//              not flicker.
+//              result or the error has gone out. When the end takes longer
+//              than DELAY to arrive, the result dims and a line above it
+//              counts the wait ("computing… 1.2 s"), as blockr.viz's outputs
+//              do. A fast script does not flicker.
 //   tools      what a result method put left of the gear (result_head() in
 //              R) is hidden while the block has no result on screen.
 (function () {
@@ -18,12 +19,17 @@
   window.__blockrScriptHead = true;
 
   var DELAY = 300;
+  var TICK = 100;
+  var LABEL = "computing";
   var BUSY = "blockr-script-container--busy";
+  var DIM = "blockr-script-result--busy";
+  var LINE = "blockr-script-busy-line";
+  var LINE_ON = "blockr-script-busy-line--on";
   var EMPTY = "blockr-script-container--no-result";
   var RESULT = "result";
 
-  // Pending timers, by block.
-  var timers = {};
+  // Evaluations under way, by block: when R started, and the timers.
+  var pending = {};
 
   function container(block) {
     var all = document.querySelectorAll(".blockr-script-container[data-sb-block]");
@@ -33,31 +39,69 @@
     return null;
   }
 
-  function setBusy(block, on) {
+  // The line that counts the wait sits right above the result output, outside
+  // it, so a new result does not replace it. A dock that builds the card
+  // again drops it; it is made again on the next tick.
+  function busyLine(out, make) {
+    if (!out || !out.parentNode) return null;
+    var prev = out.previousElementSibling;
+    if (prev && prev.classList && prev.classList.contains(LINE)) return prev;
+    if (!make) return null;
+    var line = document.createElement("div");
+    line.className = LINE;
+    line.setAttribute("aria-live", "polite");
+    out.parentNode.insertBefore(line, out);
+    return line;
+  }
+
+  function setBusy(block, on, text) {
     var el = container(block);
     if (el) el.classList.toggle(BUSY, on);
     var out = document.getElementById(block + RESULT);
     if (out) {
       if (on) out.setAttribute("aria-busy", "true");
       else out.removeAttribute("aria-busy");
+      if (out.classList) out.classList.toggle(DIM, on);
+    }
+    var line = busyLine(out, on);
+    if (line) {
+      line.classList.toggle(LINE_ON, on);
+      if (on) line.textContent = text;
     }
   }
 
+  function stop(block) {
+    var p = pending[block];
+    if (p) {
+      if (p.timer) clearTimeout(p.timer);
+      if (p.clock) clearInterval(p.clock);
+      delete pending[block];
+    }
+  }
+
+  // A second start while one is pending keeps the first clock: the wait the
+  // reader sees began then.
   function busy(msg) {
     if (!msg || typeof msg.block !== "string") return;
     var block = msg.block;
-    if (timers[block]) {
-      clearTimeout(timers[block]);
-      delete timers[block];
-    }
-    if (msg.busy) {
-      timers[block] = setTimeout(function () {
-        delete timers[block];
-        setBusy(block, true);
-      }, DELAY);
-    } else {
+    if (!msg.busy) {
+      stop(block);
       setBusy(block, false);
+      return;
     }
+    if (pending[block]) return;
+    var p = { t0: Date.now(), timer: null, clock: null };
+    pending[block] = p;
+    var tick = function () {
+      if (pending[block] !== p) return;
+      var secs = (Date.now() - p.t0) / 1000;
+      setBusy(block, true, LABEL + "\u2026 " + secs.toFixed(1) + " s");
+    };
+    p.timer = setTimeout(function () {
+      p.timer = null;
+      tick();
+      p.clock = setInterval(tick, TICK);
+    }, DELAY);
   }
 
   // Is this the value of an output with nothing in it?
@@ -89,17 +133,16 @@
     });
     // A lost connection sends no end.
     window.jQuery(document).on("shiny:disconnected", function () {
-      Object.keys(timers).forEach(function (block) {
-        clearTimeout(timers[block]);
-        delete timers[block];
+      Object.keys(pending).forEach(function (block) {
+        stop(block);
+        setBusy(block, false);
       });
-      var on = document.querySelectorAll("." + BUSY);
-      for (var i = 0; i < on.length; i++) on[i].classList.remove(BUSY);
     });
   }
 
   // For the node test.
   window.__blockrScriptHeadTest = {
-    busy: busy, isEmpty: isEmpty, resultChanged: resultChanged, DELAY: DELAY
+    busy: busy, isEmpty: isEmpty, resultChanged: resultChanged, DELAY: DELAY,
+    TICK: TICK
   };
 })();

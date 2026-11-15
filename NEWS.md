@@ -30,8 +30,9 @@
   read. A `dm` input now gives `{label(col)}` its column labels.
 - `script_expr()`: a script as one expression with the control values written
   in, for a place that has no block, such as a report.
-- The block shows a thin line under its head row while a script runs for
-  longer than about 300 ms.
+- While a script runs for longer than about 300 ms, the result dims and a
+  line above it counts the wait ("computing… 1.2 s"), as blockr.viz's
+  outputs do.
 - A `NULL` written in a script is kept: `x <- NULL` no longer fails with
   "incorrect number of arguments", and `function(a = NULL) NULL` keeps its
   formal and its body.
