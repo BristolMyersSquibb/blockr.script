@@ -1,7 +1,6 @@
 # blockr.script
 
-An R script block for
-[blockr](https://blockr-org.github.io/blockr.site/) boards. The block’s
+An R script block for [blockr](https://blockr.site) boards. The block’s
 state is an ordinary R script. It reads any number of upstream results
 and returns whatever its last statement evaluates to.
 
