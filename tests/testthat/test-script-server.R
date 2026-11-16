@@ -338,3 +338,54 @@ test_that("a control named like an input is named in the footer", {
     quote(utils::head(.(data), 3))
   )
 })
+
+test_that("the sentence is drawn again only when it changes", {
+  drawn <- 0L
+  local_mocked_bindings(sb_sentence_output = function(ui) {
+    drawn <<- drawn + 1L
+    if (inherits(ui, "error")) stop(ui)
+    ui
+  })
+  data <- shiny::reactiveVal(datasets::iris)
+  block <- new_script_block(
+    "#| title: Iris\n#| subtitle: {n} rows\n\nutils::head(data, 3)"
+  )
+  shiny::testServer(block[["expr_server"]], {
+    session$flushReact()
+    first <- output$sentence$html
+    expect_match(first, "150 rows", fixed = TRUE)
+    expect_identical(drawn, 1L)
+
+    # new data, same sentence: the output is not invalidated
+    data(datasets::iris[150:1, ])
+    session$flushReact()
+    expect_identical(drawn, 1L)
+    expect_identical(output$sentence$html, first)
+
+    data(datasets::iris[1:10, ])
+    session$flushReact()
+    expect_match(output$sentence$html, "10 rows", fixed = TRUE)
+    expect_identical(drawn, 2L)
+  }, args = list(`...args` = list(data = shiny::reactive(data()))))
+})
+
+test_that("an input behind the gate keeps the sentence it gave", {
+  open <- shiny::reactiveVal(TRUE)
+  block <- new_script_block("#| subtitle: {n} rows\n\nutils::head(data, 3)")
+  shiny::testServer(block[["expr_server"]], {
+    session$flushReact()
+    expect_match(output$sentence$html, "150 rows", fixed = TRUE)
+    open(FALSE)
+    session$flushReact()
+    expect_match(output$sentence$html, "150 rows", fixed = TRUE)
+  }, args = list(`...args` = list(data = gated(open))))
+})
+
+test_that("an error in the sentence is shown in its output", {
+  local_mocked_bindings(sb_sentence_ui = function(...) stop("no sentence"))
+  block <- new_script_block("#| title: Iris\n\nutils::head(data, 3)")
+  shiny::testServer(block[["expr_server"]], {
+    session$flushReact()
+    expect_error(output$sentence, "no sentence")
+  }, args = list(`...args` = list(data = shiny::reactive(datasets::iris))))
+})

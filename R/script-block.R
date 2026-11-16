@@ -453,22 +453,42 @@ sb_sentence_server <- function(input, output, session, r_script, r_parsed,
   })
 
   # The data tokens ({n}, {label(col)}) read the first input, as the data
-  # frame `sentence_data()` makes of it.
+  # frame `sentence_data()` makes of it. An input that cannot be read right
+  # now (a hidden panel, a failing upstream block) gives the frame last read,
+  # as the controls do (sb_specs_server()), so `{n}` does not drop to 0.
+  last_first <- new.env(parent = emptyenv())
   r_first <- shiny::reactive({
     x <- r_inputs()[["data"]]
     if (sb_is_unavailable(x)) {
-      return(NULL)
+      return(last_first$value)
     }
-    sb_sentence_data(x, r_script())
+    last_first$value <- sb_sentence_data(x, r_script())
+    last_first$value
   })
 
-  output$sentence <- shiny::renderUI({
-    face <- r_face()
-    sb_sentence_ui(
-      face$templates, r_specs(), r_values(), r_first(), ns("slot"),
-      fallback = face$fallback
+  # The sentence is built in an observer and handed to the output through a
+  # reactiveVal, which invalidates only when the tags differ. A renderUI that
+  # read the input itself was invalidated as soon as an upstream block began
+  # to evaluate, and stayed so until it was done: Shiny faded the head row
+  # for the whole wait and then drew the same sentence again. Now the old
+  # sentence stays on screen until a different one is known. Errors are kept
+  # and raised in the output, which shows them as before; an observer that
+  # failed would end the session.
+  r_sentence <- shiny::reactiveVal(NULL)
+  shiny::observe({
+    ui <- tryCatch(
+      {
+        face <- r_face()
+        sb_sentence_ui(
+          face$templates, r_specs(), r_values(), r_first(), ns("slot"),
+          fallback = face$fallback
+        )
+      },
+      error = function(e) e
     )
-  })
+    r_sentence(ui)
+  }, priority = 1L)
+  output$sentence <- shiny::renderUI(sb_sentence_output(r_sentence()))
 
   # The empty slot is not displayed, and Shiny would never render an output
   # it takes for hidden.
@@ -493,6 +513,17 @@ sb_sentence_server <- function(input, output, session, r_script, r_parsed,
   })
 
   r_slot_args
+}
+
+#' What the sentence output draws
+#'
+#' @param ui The sentence tags, `NULL`, or the error building them gave.
+#' @noRd
+sb_sentence_output <- function(ui) {
+  if (inherits(ui, "error")) {
+    stop(ui)
+  }
+  ui
 }
 
 #' The grid of controls, and collecting what they report into `r_values`
