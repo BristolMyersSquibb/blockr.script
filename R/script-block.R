@@ -267,7 +267,15 @@ new_script_block <- function(script = "n <- 6\n\nutils::head(data, n)",
           # The slots, named by what the script reads them as.
           r_refs <- shiny::reactive(sb_slots(...args))
 
-          r_inputs <- shiny::reactive(sb_inputs(...args))
+          # Core hands a block its inputs again when the block is shown or
+          # hidden, with the same values. Held back here, so the controls,
+          # the sentence and the result hooks run only when an input
+          # changes. Ahead of the observers that read it, so they see the
+          # inputs on their first run.
+          r_inputs <- sb_distinct(
+            shiny::reactive(sb_inputs(...args)),
+            priority = 20L
+          )
 
           r_specs <- sb_specs_server(r_parsed, r_inputs, r_values)
 
@@ -957,16 +965,17 @@ sb_first_control <- function(specs) {
 #' is only written when the value differs.
 #'
 #' @param r A reactive.
+#' @param priority The priority of the observer that copies `r`.
 #' @return A `reactiveVal`, `NULL` until `r` has a value.
 #' @noRd
-sb_distinct <- function(r) {
+sb_distinct <- function(r, priority = 0L) {
   val <- shiny::reactiveVal(NULL)
   shiny::observe({
     x <- r()
     if (!identical(x, shiny::isolate(val()))) {
       val(x)
     }
-  })
+  }, priority = priority)
   val
 }
 

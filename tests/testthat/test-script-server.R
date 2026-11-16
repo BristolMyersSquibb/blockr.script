@@ -389,3 +389,31 @@ test_that("an error in the sentence is shown in its output", {
     expect_error(output$sentence, "no sentence")
   }, args = list(`...args` = list(data = shiny::reactive(datasets::iris))))
 })
+
+test_that("inputs delivered again with the same values change nothing", {
+  specs <- 0L
+  real <- cb_specs
+  local_mocked_bindings(cb_specs = function(...) {
+    specs <<- specs + 1L
+    real(...)
+  })
+  tick <- shiny::reactiveVal(0L)
+  data <- shiny::reactiveVal(datasets::iris)
+  block <- new_script_block("n <- 6\n\nutils::head(data, n)")
+  shiny::testServer(block[["expr_server"]], {
+    session$flushReact()
+    expect_identical(specs, 1L)
+
+    # what core does when the block is shown or hidden
+    tick(1L)
+    session$flushReact()
+    expect_identical(specs, 1L)
+
+    data(datasets::iris[1:10, ])
+    session$flushReact()
+    expect_identical(specs, 2L)
+  }, args = list(`...args` = list(data = shiny::reactive({
+    tick()
+    data()
+  }))))
+})
