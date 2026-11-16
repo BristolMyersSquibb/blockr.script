@@ -226,14 +226,19 @@
 /* A checkbox carries its label beside the box, so its field is a control with
  * no label row. The spacer holds that row open (sb_field_wrapper()) and the
  * box gets the same 42px shell as every other control, so a flag sits level
- * with the fields either side instead of 23px above them. */
+ * with the fields either side instead of 23px above them.
+ *
+ * The label selector has to outrank blockr.ui's theme rule
+ * `:root .checkbox > label:has(> input[type="checkbox"])`, which sets
+ * `inline-flex` and `padding-left: 0` and otherwise puts the box against the
+ * left border. */
 .blockr-script-field--flag .blockr-script-field-label--spacer {
   visibility: hidden;
 }
 .blockr-script-field--flag .checkbox {
   margin: 0;
 }
-.blockr-script-field--flag .checkbox label {
+:root .blockr-script-field--flag .checkbox > label:has(> input[type="checkbox"]) {
   display: flex;
   align-items: center;
   gap: 9px;
