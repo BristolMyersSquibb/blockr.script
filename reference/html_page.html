@@ -49,11 +49,9 @@ a page you write, or <code>url</code>, a page that lives elsewhere.</p>
 <span>  html <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  url <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  data <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  <span class="va">...</span>,</span>
 <span>  height <span class="op">=</span> <span class="st">"auto"</span>,</span>
 <span>  sandbox <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  max_rows <span class="op">=</span> <span class="fl">1000L</span>,</span>
-<span>  js_data <span class="op">=</span> <span class="cn">TRUE</span></span>
+<span>  max_rows <span class="op">=</span> <span class="fl">1000L</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -62,22 +60,16 @@ a page you write, or <code>url</code>, a page that lives elsewhere.</p>
 
 
 <dl><dt id="arg-html">html<a class="anchor" aria-label="anchor" href="#arg-html"></a></dt>
-<dd><p>A mustache template, a single string or a character vector of
-lines.</p></dd>
+<dd><p>The page, a single string or a character vector of lines.</p></dd>
 
 
 <dt id="arg-url">url<a class="anchor" aria-label="anchor" href="#arg-url"></a></dt>
-<dd><p>A URL, with optional <code>{name}</code> placeholders.</p></dd>
+<dd><p>A URL.</p></dd>
 
 
 <dt id="arg-data">data<a class="anchor" aria-label="anchor" href="#arg-data"></a></dt>
-<dd><p>A data frame, a list or a vector the page reads. <code>NULL</code> for
-none.</p></dd>
-
-
-<dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
-<dd><p>Further named values for the template or the URL. In a template
-the names <code>rows</code>, <code>nrow</code> and <code>ncol</code> are taken.</p></dd>
+<dd><p>A data frame, a list or a vector that scripts in an <code>html</code>
+page read as <code>blockr.data</code>. <code>NULL</code> for none.</p></dd>
 
 
 <dt id="arg-height">height<a class="anchor" aria-label="anchor" href="#arg-height"></a></dt>
@@ -95,11 +87,6 @@ takes the default for the mode.</p></dd>
 <dd><p>Rows of <code>data</code> passed to the page. More are dropped with a
 warning. <code>Inf</code> for no limit.</p></dd>
 
-
-<dt id="arg-js-data">js_data<a class="anchor" aria-label="anchor" href="#arg-js-data"></a></dt>
-<dd><p>Whether scripts in the page get the data as <code>blockr.data</code>.
-With <code>FALSE</code> it is <code>null</code>.</p></dd>
-
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
@@ -109,26 +96,15 @@ With <code>FALSE</code> it is <code>null</code>.</p></dd>
     <h2 id="html">HTML<a class="anchor" aria-label="anchor" href="#html"></a></h2>
 
 
-<p><code>html</code> is a mustache template, filled in R with whisker. The template sees
-<code>rows</code> (one entry per row of <code>data</code>), <code>nrow</code>, <code>ncol</code> and any value passed
-in <code>...</code>. Use <code>{{col}}</code> for an escaped value and <code>{{{col}}}</code> for raw HTML.
-The escaping covers <code>&lt;</code>, <code>&gt;</code>, <code>&amp;</code> and <code>"</code>, but not <code>'</code>, so write attributes
-with double quotes: <code>&lt;a title="{{col}}"&gt;</code>.</p>
-<p>Mustache cannot read a name that holds a dot or a space: it takes
-<code>{{Sepal.Length}}</code> for <code>Length</code> inside <code>Sepal</code>. The template therefore also
-gets each such column under a safe name, with dots and spaces replaced by
-underscores: <code>{{Sepal_Length}}</code>. A template that writes the real name gets
-a warning.</p>
-<p>Scripts in the page read the same data as JSON from <code>blockr.data</code>, an array
-of row objects with the real column names, or <code>null</code> without data. Missing
-values differ between the two: the template writes <code>NA</code>, <code>Inf</code> and <code>NaN</code> as
-text, and <code>blockr.data</code> holds <code>null</code>. Date-times are written in UTC
-(<code>"2026-01-02T03:04:05Z"</code>).</p>
-<p>The data travels to the browser with the page, once in the filled template
-and once in <code>blockr.data</code>, and again each time the block re-renders.
-<code>max_rows</code> limits it. A page that only uses the template can set
-<code>js_data = FALSE</code> to leave <code>blockr.data</code> out, which about halves the size.
-<code>rows</code> is only built when the template uses it.</p>
+<p><code>html</code> goes into the frame as it is. To put values from R into it, build
+the string in the script, with <code><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0()</a></code>, <code><a href="https://rdrr.io/r/base/sprintf.html" class="external-link">sprintf()</a></code> or a package such
+as glue. <code><a href="https://rstudio.github.io/htmltools/reference/htmlEscape.html" class="external-link">htmltools::htmlEscape()</a></code> escapes a value that may hold <code>&lt;</code> or
+<code>&amp;</code>.</p>
+<p>Scripts in the page read <code>data</code> as JSON from <code>blockr.data</code>, an array of
+row objects for a data frame, or <code>null</code> without data. Missing values are
+<code>null</code>. Date-times are written in UTC (<code>"2026-01-02T03:04:05Z"</code>).</p>
+<p>The data travels to the browser with the page, again each time the block
+re-renders. <code>max_rows</code> limits it.</p>
 <p>The page runs in an iframe with <code>sandbox = "allow-scripts"</code>: its CSS and JS
 cannot reach the board. The sandbox does not keep the page from sending its
 data to other hosts. A script, an image or a style sheet in the page can
@@ -139,9 +115,9 @@ load from anywhere and pass along what the page holds. With
     <h2 id="url">URL<a class="anchor" aria-label="anchor" href="#url"></a></h2>
 
 
-<p><code>{name}</code> in <code>url</code> is filled from the first row of <code>data</code>, or from a value
-in <code>...</code>, and URL-encoded. The filled URL has to start with <code>http://</code> or
-<code>https://</code>. The other site has to allow framing: a site that sends
+<p>The URL has to start with <code>http://</code> or <code>https://</code>. A value from R goes in
+with <code><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0()</a></code>; <code><a href="https://rdrr.io/r/utils/URLencode.html" class="external-link">utils::URLencode()</a></code> with <code>reserved = TRUE</code> encodes it.
+The other site has to allow framing: a site that sends
 <code>X-Frame-Options: DENY</code> or <code>SAMEORIGIN</code>, or a CSP <code>frame-ancestors</code> that
 does not list the board's host, stays blank. A link above the frame opens
 the page in a new tab.</p>
@@ -161,16 +137,36 @@ document with HTML output the frame is part of the document.</p>
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="fu">html_page</span><span class="op">(</span><span class="st">"&lt;h1&gt;{{title}}&lt;/h1&gt;"</span>, title <span class="op">=</span> <span class="st">"Hello"</span><span class="op">)</span></span></span>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="va">title</span> <span class="op">&lt;-</span> <span class="st">"Hello"</span></span></span>
+<span class="r-in"><span><span class="fu">html_page</span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span><span class="st">"&lt;h1&gt;"</span>, <span class="va">title</span>, <span class="st">"&lt;/h1&gt;"</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> &lt;html_page&gt; html, 671 characters, height auto</span>
 <span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="va">bands</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>name <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Mick"</span>, <span class="st">"John"</span><span class="op">)</span>, band <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Stones"</span>, <span class="st">"Beatles"</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">html_page</span><span class="op">(</span></span></span>
-<span class="r-in"><span>  <span class="st">"&lt;ul&gt;{{#rows}}&lt;li&gt;{{name}}: {{band}}&lt;/li&gt;{{/rows}}&lt;/ul&gt;"</span>,</span></span>
-<span class="r-in"><span>  data <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>name <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Mick"</span>, <span class="st">"John"</span><span class="op">)</span>, band <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Stones"</span>, <span class="st">"Beatles"</span><span class="op">)</span><span class="op">)</span></span></span>
+<span class="r-in"><span>  <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span></span></span>
+<span class="r-in"><span>    <span class="st">"&lt;ul&gt;"</span>,</span></span>
+<span class="r-in"><span>    <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span><span class="st">"&lt;li&gt;"</span>, <span class="va">bands</span><span class="op">$</span><span class="va">name</span>, <span class="st">": "</span>, <span class="va">bands</span><span class="op">$</span><span class="va">band</span>, <span class="st">"&lt;/li&gt;"</span>, collapse <span class="op">=</span> <span class="st">""</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>    <span class="st">"&lt;/ul&gt;"</span></span></span>
+<span class="r-in"><span>  <span class="op">)</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> &lt;html_page&gt; html, 771 characters, height auto</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> &lt;html_page&gt; html, 709 characters, height auto</span>
 <span class="r-in"><span></span></span>
-<span class="r-in"><span><span class="fu">html_page</span><span class="op">(</span>url <span class="op">=</span> <span class="st">"https://example.org/search?q={q}"</span>, q <span class="op">=</span> <span class="st">"blockr"</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="fu">html_page</span><span class="op">(</span></span></span>
+<span class="r-in"><span>  <span class="st">"&lt;ul id='l'&gt;&lt;/ul&gt;&lt;script&gt;</span></span></span>
+<span class="r-in"><span><span class="st">  blockr.data.forEach(function (r) {</span></span></span>
+<span class="r-in"><span><span class="st">    document.getElementById('l').insertAdjacentHTML(</span></span></span>
+<span class="r-in"><span><span class="st">      'beforeend', '&lt;li&gt;' + r.name + '&lt;/li&gt;'</span></span></span>
+<span class="r-in"><span><span class="st">    );</span></span></span>
+<span class="r-in"><span><span class="st">  });</span></span></span>
+<span class="r-in"><span><span class="st">  &lt;/script&gt;"</span>,</span></span>
+<span class="r-in"><span>  data <span class="op">=</span> <span class="va">bands</span></span></span>
+<span class="r-in"><span><span class="op">)</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> &lt;html_page&gt; html, 903 characters, height auto</span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="va">q</span> <span class="op">&lt;-</span> <span class="st">"blockr"</span></span></span>
+<span class="r-in"><span><span class="fu">html_page</span><span class="op">(</span></span></span>
+<span class="r-in"><span>  url <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span><span class="st">"https://example.org/search?q="</span>, <span class="fu">utils</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/r/utils/URLencode.html" class="external-link">URLencode</a></span><span class="op">(</span><span class="va">q</span>, <span class="cn">TRUE</span><span class="op">)</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> &lt;html_page&gt; https://example.org/search?q=blockr, height 600px</span>
 <span class="r-in"><span></span></span>
 </code></pre></div>

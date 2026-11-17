@@ -10,8 +10,9 @@
 - [`new_prose_block()`](https://bristolmyerssquibb.github.io/blockr.script/reference/new_prose_block.md):
   markdown with inline R, as ‘Quarto’ writes it.
 - [`html_page()`](https://bristolmyerssquibb.github.io/blockr.script/reference/html_page.md):
-  a script result that draws as a sandboxed frame, either from a
-  mustache template filled from the input or from a URL.
+  a script result that draws as a sandboxed frame, either from HTML the
+  script writes or from a URL. Scripts in the page read the input as
+  `blockr.data`.
 - Both blocks take any number of inputs. The first one reads as `data`.
 - [`block_result_output()`](https://bristolmyerssquibb.github.io/blockr.script/reference/block_result_output.md):
   a generic another package can extend to draw its own result class.

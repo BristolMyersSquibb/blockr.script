@@ -39,7 +39,7 @@
 <li>
 <code><a href="../reference/new_prose_block.html">new_prose_block()</a></code>: markdown with inline R, as ‘Quarto’ writes it.</li>
 <li>
-<code><a href="../reference/html_page.html">html_page()</a></code>: a script result that draws as a sandboxed frame, either from a mustache template filled from the input or from a URL.</li>
+<code><a href="../reference/html_page.html">html_page()</a></code>: a script result that draws as a sandboxed frame, either from HTML the script writes or from a URL. Scripts in the page read the input as <code>blockr.data</code>.</li>
 <li>Both blocks take any number of inputs. The first one reads as <code>data</code>.</li>
 <li>
 <code><a href="../reference/block_result_output.html">block_result_output()</a></code>: a generic another package can extend to draw its own result class.</li>
