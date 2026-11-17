@@ -8,24 +8,18 @@ html_page(
   html = NULL,
   url = NULL,
   data = NULL,
-  ...,
   height = "auto",
   sandbox = NULL,
-  max_rows = 1000L,
-  js_data = TRUE
+  max_rows = 1000L
 )
 }
 \arguments{
-\item{html}{A mustache template, a single string or a character vector of
-lines.}
+\item{html}{The page, a single string or a character vector of lines.}
 
-\item{url}{A URL, with optional \code{{name}} placeholders.}
+\item{url}{A URL.}
 
-\item{data}{A data frame, a list or a vector the page reads. \code{NULL} for
-none.}
-
-\item{...}{Further named values for the template or the URL. In a template
-the names \code{rows}, \code{nrow} and \code{ncol} are taken.}
+\item{data}{A data frame, a list or a vector that scripts in an \code{html}
+page read as \code{blockr.data}. \code{NULL} for none.}
 
 \item{height}{Height of the frame: a number of pixels or a CSS length such
 as \code{"400px"} or \code{"50vh"}. \code{"auto"} fits an \code{html} page to its content; a
@@ -36,9 +30,6 @@ takes the default for the mode.}
 
 \item{max_rows}{Rows of \code{data} passed to the page. More are dropped with a
 warning. \code{Inf} for no limit.}
-
-\item{js_data}{Whether scripts in the page get the data as \code{blockr.data}.
-With \code{FALSE} it is \code{null}.}
 }
 \value{
 An object of class \code{html_page}.
@@ -50,29 +41,17 @@ a page you write, or \code{url}, a page that lives elsewhere.
 }
 \section{HTML}{
 
-\code{html} is a mustache template, filled in R with whisker. The template sees
-\code{rows} (one entry per row of \code{data}), \code{nrow}, \code{ncol} and any value passed
-in \code{...}. Use \code{{{col}}} for an escaped value and \code{{{{col}}}} for raw HTML.
-The escaping covers \code{<}, \code{>}, \code{&} and \verb{"}, but not \verb{'}, so write attributes
-with double quotes: \verb{<a title="\{\{col\}\}">}.
+\code{html} goes into the frame as it is. To put values from R into it, build
+the string in the script, with \code{\link[=paste0]{paste0()}}, \code{\link[=sprintf]{sprintf()}} or a package such
+as glue. \code{\link[htmltools:htmlEscape]{htmltools::htmlEscape()}} escapes a value that may hold \code{<} or
+\code{&}.
 
-Mustache cannot read a name that holds a dot or a space: it takes
-\code{{{Sepal.Length}}} for \code{Length} inside \code{Sepal}. The template therefore also
-gets each such column under a safe name, with dots and spaces replaced by
-underscores: \code{{{Sepal_Length}}}. A template that writes the real name gets
-a warning.
+Scripts in the page read \code{data} as JSON from \code{blockr.data}, an array of
+row objects for a data frame, or \code{null} without data. Missing values are
+\code{null}. Date-times are written in UTC (\code{"2026-01-02T03:04:05Z"}).
 
-Scripts in the page read the same data as JSON from \code{blockr.data}, an array
-of row objects with the real column names, or \code{null} without data. Missing
-values differ between the two: the template writes \code{NA}, \code{Inf} and \code{NaN} as
-text, and \code{blockr.data} holds \code{null}. Date-times are written in UTC
-(\code{"2026-01-02T03:04:05Z"}).
-
-The data travels to the browser with the page, once in the filled template
-and once in \code{blockr.data}, and again each time the block re-renders.
-\code{max_rows} limits it. A page that only uses the template can set
-\code{js_data = FALSE} to leave \code{blockr.data} out, which about halves the size.
-\code{rows} is only built when the template uses it.
+The data travels to the browser with the page, again each time the block
+re-renders. \code{max_rows} limits it.
 
 The page runs in an iframe with \code{sandbox = "allow-scripts"}: its CSS and JS
 cannot reach the board. The sandbox does not keep the page from sending its
@@ -83,9 +62,9 @@ load from anywhere and pass along what the page holds. With
 
 \section{URL}{
 
-\code{{name}} in \code{url} is filled from the first row of \code{data}, or from a value
-in \code{...}, and URL-encoded. The filled URL has to start with \verb{http://} or
-\verb{https://}. The other site has to allow framing: a site that sends
+The URL has to start with \verb{http://} or \verb{https://}. A value from R goes in
+with \code{\link[=paste0]{paste0()}}; \code{\link[utils:URLencode]{utils::URLencode()}} with \code{reserved = TRUE} encodes it.
+The other site has to allow framing: a site that sends
 \code{X-Frame-Options: DENY} or \code{SAMEORIGIN}, or a CSP \code{frame-ancestors} that
 does not list the board's host, stays blank. A link above the frame opens
 the page in a new tab.
@@ -104,13 +83,32 @@ document with HTML output the frame is part of the document.
 }
 
 \examples{
-html_page("<h1>{{title}}</h1>", title = "Hello")
+title <- "Hello"
+html_page(paste0("<h1>", title, "</h1>"))
 
+bands <- data.frame(name = c("Mick", "John"), band = c("Stones", "Beatles"))
 html_page(
-  "<ul>{{#rows}}<li>{{name}}: {{band}}</li>{{/rows}}</ul>",
-  data = data.frame(name = c("Mick", "John"), band = c("Stones", "Beatles"))
+  paste0(
+    "<ul>",
+    paste0("<li>", bands$name, ": ", bands$band, "</li>", collapse = ""),
+    "</ul>"
+  )
 )
 
-html_page(url = "https://example.org/search?q={q}", q = "blockr")
+html_page(
+  "<ul id='l'></ul><script>
+  blockr.data.forEach(function (r) {
+    document.getElementById('l').insertAdjacentHTML(
+      'beforeend', '<li>' + r.name + '</li>'
+    );
+  });
+  </script>",
+  data = bands
+)
+
+q <- "blockr"
+html_page(
+  url = paste0("https://example.org/search?q=", utils::URLencode(q, TRUE))
+)
 
 }

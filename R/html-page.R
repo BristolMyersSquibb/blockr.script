@@ -5,29 +5,17 @@
 #' a page you write, or `url`, a page that lives elsewhere.
 #'
 #' @section HTML:
-#' `html` is a mustache template, filled in R with whisker. The template sees
-#' `rows` (one entry per row of `data`), `nrow`, `ncol` and any value passed
-#' in `...`. Use `{{col}}` for an escaped value and `{{{col}}}` for raw HTML.
-#' The escaping covers `<`, `>`, `&` and `"`, but not `'`, so write attributes
-#' with double quotes: `<a title="{{col}}">`.
+#' `html` goes into the frame as it is. To put values from R into it, build
+#' the string in the script, with [paste0()], [sprintf()] or a package such
+#' as glue. [htmltools::htmlEscape()] escapes a value that may hold `<` or
+#' `&`.
 #'
-#' Mustache cannot read a name that holds a dot or a space: it takes
-#' `{{Sepal.Length}}` for `Length` inside `Sepal`. The template therefore also
-#' gets each such column under a safe name, with dots and spaces replaced by
-#' underscores: `{{Sepal_Length}}`. A template that writes the real name gets
-#' a warning.
+#' Scripts in the page read `data` as JSON from `blockr.data`, an array of
+#' row objects for a data frame, or `null` without data. Missing values are
+#' `null`. Date-times are written in UTC (`"2026-01-02T03:04:05Z"`).
 #'
-#' Scripts in the page read the same data as JSON from `blockr.data`, an array
-#' of row objects with the real column names, or `null` without data. Missing
-#' values differ between the two: the template writes `NA`, `Inf` and `NaN` as
-#' text, and `blockr.data` holds `null`. Date-times are written in UTC
-#' (`"2026-01-02T03:04:05Z"`).
-#'
-#' The data travels to the browser with the page, once in the filled template
-#' and once in `blockr.data`, and again each time the block re-renders.
-#' `max_rows` limits it. A page that only uses the template can set
-#' `js_data = FALSE` to leave `blockr.data` out, which about halves the size.
-#' `rows` is only built when the template uses it.
+#' The data travels to the browser with the page, again each time the block
+#' re-renders. `max_rows` limits it.
 #'
 #' The page runs in an iframe with `sandbox = "allow-scripts"`: its CSS and JS
 #' cannot reach the board. The sandbox does not keep the page from sending its
@@ -36,9 +24,9 @@
 #' `height = "auto"` the iframe grows to fit the page, up to 20000 pixels.
 #'
 #' @section URL:
-#' `{name}` in `url` is filled from the first row of `data`, or from a value
-#' in `...`, and URL-encoded. The filled URL has to start with `http://` or
-#' `https://`. The other site has to allow framing: a site that sends
+#' The URL has to start with `http://` or `https://`. A value from R goes in
+#' with [paste0()]; [utils::URLencode()] with `reserved = TRUE` encodes it.
+#' The other site has to allow framing: a site that sends
 #' `X-Frame-Options: DENY` or `SAMEORIGIN`, or a CSP `frame-ancestors` that
 #' does not list the board's host, stays blank. A link above the frame opens
 #' the page in a new tab.
@@ -53,13 +41,10 @@
 #' script run with `Rscript` it prints one line. In an R Markdown or Quarto
 #' document with HTML output the frame is part of the document.
 #'
-#' @param html A mustache template, a single string or a character vector of
-#'   lines.
-#' @param url A URL, with optional `{name}` placeholders.
-#' @param data A data frame, a list or a vector the page reads. `NULL` for
-#'   none.
-#' @param ... Further named values for the template or the URL. In a template
-#'   the names `rows`, `nrow` and `ncol` are taken.
+#' @param html The page, a single string or a character vector of lines.
+#' @param url A URL.
+#' @param data A data frame, a list or a vector that scripts in an `html`
+#'   page read as `blockr.data`. `NULL` for none.
 #' @param height Height of the frame: a number of pixels or a CSS length such
 #'   as `"400px"` or `"50vh"`. `"auto"` fits an `html` page to its content; a
 #'   URL page cannot be measured and defaults to `"600px"`.
@@ -67,33 +52,44 @@
 #'   takes the default for the mode.
 #' @param max_rows Rows of `data` passed to the page. More are dropped with a
 #'   warning. `Inf` for no limit.
-#' @param js_data Whether scripts in the page get the data as `blockr.data`.
-#'   With `FALSE` it is `null`.
 #'
 #' @return An object of class `html_page`.
 #'
 #' @examples
-#' html_page("<h1>{{title}}</h1>", title = "Hello")
+#' title <- "Hello"
+#' html_page(paste0("<h1>", title, "</h1>"))
 #'
+#' bands <- data.frame(name = c("Mick", "John"), band = c("Stones", "Beatles"))
 #' html_page(
-#'   "<ul>{{#rows}}<li>{{name}}: {{band}}</li>{{/rows}}</ul>",
-#'   data = data.frame(name = c("Mick", "John"), band = c("Stones", "Beatles"))
+#'   paste0(
+#'     "<ul>",
+#'     paste0("<li>", bands$name, ": ", bands$band, "</li>", collapse = ""),
+#'     "</ul>"
+#'   )
 #' )
 #'
-#' html_page(url = "https://example.org/search?q={q}", q = "blockr")
+#' html_page(
+#'   "<ul id='l'></ul><script>
+#'   blockr.data.forEach(function (r) {
+#'     document.getElementById('l').insertAdjacentHTML(
+#'       'beforeend', '<li>' + r.name + '</li>'
+#'     );
+#'   });
+#'   </script>",
+#'   data = bands
+#' )
+#'
+#' q <- "blockr"
+#' html_page(
+#'   url = paste0("https://example.org/search?q=", utils::URLencode(q, TRUE))
+#' )
 #'
 #' @export
-html_page <- function(html = NULL, url = NULL, data = NULL, ...,
-                      height = "auto", sandbox = NULL, max_rows = 1000L,
-                      js_data = TRUE) {
+html_page <- function(html = NULL, url = NULL, data = NULL,
+                      height = "auto", sandbox = NULL, max_rows = 1000L) {
 
   if (is.null(html) == is.null(url)) {
     stop("Give exactly one of `html` and `url`.", call. = FALSE)
-  }
-
-  vals <- list(...)
-  if (length(vals) && (is.null(names(vals)) || any(!nzchar(names(vals))))) {
-    stop("Values in `...` must be named.", call. = FALSE)
   }
 
   if (!(is.null(data) || is.data.frame(data) || is.list(data) ||
@@ -117,10 +113,6 @@ html_page <- function(html = NULL, url = NULL, data = NULL, ...,
     stop("`sandbox` must be a single string.", call. = FALSE)
   }
 
-  if (!isTRUE(js_data) && !isFALSE(js_data)) {
-    stop("`js_data` must be `TRUE` or `FALSE`.", call. = FALSE)
-  }
-
   if (!identical(height, "auto")) {
     if (length(height) != 1L) {
       stop("`height` must be a single value.", call. = FALSE)
@@ -130,25 +122,19 @@ html_page <- function(html = NULL, url = NULL, data = NULL, ...,
     height <- htmltools::validateCssUnit(height)
   }
 
-  if (is.data.frame(data) && nrow(data) > max_rows) {
-    warning(
-      "`data` has ", nrow(data), " rows; the page gets the first ", max_rows,
-      ".", call. = FALSE
-    )
-    data <- data[seq_len(max_rows), , drop = FALSE]
-  }
-
   if (!is.null(url)) {
+    if (!is.null(data)) {
+      stop("`data` is only read by an `html` page.", call. = FALSE)
+    }
     if (!is.character(url) || length(url) != 1L || is.na(url)) {
       stop("`url` must be a single string.", call. = FALSE)
     }
-    src <- html_page_fill_url(url, data, vals)
     # The URL goes into the frame's `src` and into a link. Anything but a web
     # address (`javascript:`, `data:`, a relative path) would run or load on
     # the board's own origin.
-    if (!grepl("^https?://", src, ignore.case = TRUE)) {
+    if (!grepl("^https?://", url, ignore.case = TRUE)) {
       stop(
-        "The URL must start with `http://` or `https://`: ", src,
+        "The URL must start with `http://` or `https://`: ", url,
         call. = FALSE
       )
     }
@@ -156,7 +142,7 @@ html_page <- function(html = NULL, url = NULL, data = NULL, ...,
       height <- "600px"
     }
     res <- list(
-      url = src,
+      url = url,
       height = height,
       sandbox = if (is.null(sandbox)) paste(
         "allow-scripts allow-same-origin allow-forms allow-popups",
@@ -167,107 +153,21 @@ html_page <- function(html = NULL, url = NULL, data = NULL, ...,
     if (!is.character(html)) {
       stop("`html` must be a character vector.", call. = FALSE)
     }
-    html <- paste(html, collapse = "\n")
-    taken <- intersect(names(vals), c("rows", "nrow", "ncol"))
-    if (length(taken)) {
-      stop(
-        "The template sets ", paste0("`", taken, "`", collapse = ", "),
-        " itself. Use another name in `...`.", call. = FALSE
+    if (is.data.frame(data) && nrow(data) > max_rows) {
+      warning(
+        "`data` has ", nrow(data), " rows; the page gets the first ",
+        max_rows, ".", call. = FALSE
       )
+      data <- data[seq_len(max_rows), , drop = FALSE]
     }
-    is_df <- is.data.frame(data)
-    ctx <- c(
-      list(
-        # Splitting the data into rows is the slow part, so it is skipped for
-        # a template that never names them.
-        rows = if (is_df && grepl("rows", html, fixed = TRUE)) {
-          whisker::rowSplit(html_page_template_data(data, html))
-        } else {
-          list()
-        },
-        nrow = if (is_df) nrow(data) else 0L,
-        ncol = if (is_df) ncol(data) else 0L
-      ),
-      vals
-    )
-    body <- whisker::whisker.render(html, ctx)
     res <- list(
-      srcdoc = html_page_document(body, if (js_data) data),
+      srcdoc = html_page_document(paste(html, collapse = "\n"), data),
       height = height,
       sandbox = if (is.null(sandbox)) "allow-scripts" else sandbox
     )
   }
 
   structure(res, class = "html_page")
-}
-
-#' The data as the template reads it
-#'
-#' Mustache splits a name at dots and cannot hold a space, so a column with
-#' such a name gets a copy under a name with underscores. A copy never
-#' replaces a column that already has that name. A template that writes one
-#' of the real names would silently show nothing, so that case warns.
-#' @noRd
-html_page_template_data <- function(data, html) {
-  nms <- names(data)
-  safe <- gsub("[.[:space:]]", "_", nms)
-  add <- safe != nms & !safe %in% nms & !duplicated(safe)
-  if (!any(add)) {
-    return(data)
-  }
-  tags <- regmatches(html, gregexpr("\\{\\{[^{}]+\\}\\}", html))[[1L]]
-  tags <- trimws(gsub("^\\{\\{[&#^/]?|\\}\\}$", "", tags))
-  used <- add & nms %in% tags
-  if (any(used)) {
-    warning(
-      "Mustache cannot read a name with a dot or a space. Write ",
-      paste0(
-        "`{{", safe[used], "}}` for `", nms[used], "`", collapse = ", "
-      ),
-      ".", call. = FALSE
-    )
-  }
-  data[safe[add]] <- data[nms[add]]
-  data
-}
-
-#' Fill `{name}` in a URL from the first row of `data` and from `vals`
-#' @noRd
-html_page_fill_url <- function(url, data, vals) {
-  row <- if (is.data.frame(data) && nrow(data)) {
-    as.list(data[1L, , drop = FALSE])
-  } else {
-    list()
-  }
-  vals <- c(vals, row[setdiff(names(row), names(vals))])
-
-  keys <- regmatches(url, gregexpr("\\{[^{}]+\\}", url))[[1L]]
-  for (key in unique(keys)) {
-    name <- substr(key, 2L, nchar(key) - 1L)
-    if (!name %in% names(vals)) {
-      stop("No value for `", key, "` in the URL.", call. = FALSE)
-    }
-    val <- utils::URLencode(html_page_url_value(vals[[name]], key), TRUE)
-    url <- gsub(key, val, url, fixed = TRUE)
-  }
-  url
-}
-
-# One placeholder value as text. A missing value stops, and a number is
-# written out in full, never as 1e+06.
-html_page_url_value <- function(x, key) {
-  if (is.list(x) && length(x) == 1L) {
-    x <- x[[1L]]
-  }
-  if (!is.atomic(x) || length(x) == 0L || is.na(x[1L])) {
-    stop("The value for `", key, "` in the URL is missing.", call. = FALSE)
-  }
-  x <- x[1L]
-  if (is.numeric(x) && !inherits(x, c("Date", "POSIXt", "factor"))) {
-    format(x, scientific = FALSE, trim = TRUE, digits = 15L)
-  } else {
-    as.character(x)
-  }
 }
 
 #' The page as it goes into `srcdoc`

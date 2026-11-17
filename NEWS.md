@@ -6,7 +6,8 @@
   editor's "Start from" menu offers starter scripts.
 - `new_prose_block()`: markdown with inline R, as 'Quarto' writes it.
 - `html_page()`: a script result that draws as a sandboxed frame, either
-  from a mustache template filled from the input or from a URL.
+  from HTML the script writes or from a URL. Scripts in the page read the
+  input as `blockr.data`.
 - Both blocks take any number of inputs. The first one reads as `data`.
 - `block_result_output()`: a generic another package can extend to draw its
   own result class.

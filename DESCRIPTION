@@ -39,8 +39,7 @@ Imports:
     shiny,
     stats,
     tools,
-    utils,
-    whisker
+    utils
 Suggests:
     dm,
     dplyr,
