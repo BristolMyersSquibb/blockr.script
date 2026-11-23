@@ -281,8 +281,8 @@ arg_token_value <- function(name, args) {
 
 SB_TIERS <- c("title", "subtitle", "caption")
 
-# How many values a multi-select spells out before eliding.
-SB_SLOT_MAX_VALUES <- 8L
+# How many picks a multi-select's word names before "+N more".
+SB_PICKS_SHOWN <- 3L
 
 sb_or <- function(x, y) if (is.null(x)) y else x
 
@@ -418,7 +418,7 @@ sb_slot_arg_names <- function(specs, templates) {
 #'
 #' An untouched control reads the script's own value. A checkbox reads as its
 #' label when on and as nothing when off, so a clause can carry it. A
-#' multi-select reads as its values joined with ", ", elided past 8.
+#' multi-select reads as a chart's does (sb_picks_word()).
 #'
 #' @noRd
 sb_title_args <- function(specs, values = list()) {
@@ -431,12 +431,7 @@ sb_title_args <- function(specs, values = list()) {
     if (identical(s$kind, "flag")) {
       v <- if (isTRUE(as.logical(v)[[1L]])) cb_label(s) else ""
     } else if (identical(s$kind, "select") && isTRUE(s$multiple)) {
-      v <- as.character(v)
-      v <- v[!is.na(v) & nzchar(v)]
-      if (length(v) > SB_SLOT_MAX_VALUES) {
-        v <- c(v[seq_len(SB_SLOT_MAX_VALUES)], "\u2026")
-      }
-      v <- paste(v, collapse = ", ")
+      v <- sb_picks_word(as.character(v), as.character(s$choices))
     } else if (identical(s$kind, "date")) {
       v <- format(as.Date(v))
     } else if (is.numeric(v)) {
@@ -445,6 +440,26 @@ sb_title_args <- function(specs, values = list()) {
     vals[[s$name]] <- v
   }
   vals
+}
+
+# A multi-select's word, as a chart's (blockr.viz script_picks_word()):
+# "all" when every choice is picked, "none" when none is, else the picks,
+# the first three then "+N more". Picks the choices no longer hold (they can
+# follow another control) do not count.
+sb_picks_word <- function(v, choices) {
+  v <- v[!is.na(v) & nzchar(v)]
+  if (length(choices)) v <- v[v %in% choices]
+  if (!length(v)) {
+    return("none")
+  }
+  if (length(choices) > 1L && setequal(v, choices)) {
+    return("all")
+  }
+  if (length(v) > SB_PICKS_SHOWN) {
+    return(paste0(paste(v[seq_len(SB_PICKS_SHOWN)], collapse = ", "),
+                  " +", length(v) - SB_PICKS_SHOWN, " more"))
+  }
+  paste(v, collapse = ", ")
 }
 
 # A slot with a list, `{@arg in a, b}`: the name, then the choices.

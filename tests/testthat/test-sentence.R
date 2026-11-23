@@ -104,7 +104,22 @@ test_that("a multi-select prints its values joined", {
     "data"
   ))
   expect_equal(sb_title_args(specs)$sev, "MILD, SEVERE")
-  expect_equal(sb_title_args(specs, list(sev = character()))$sev, "")
+})
+
+test_that("a multi-select reads all, none, or its first picks, as a chart's", {
+  specs <- specs_of(c(
+    'v <- factor(c("W1", "W2", "W3", "W4", "W5"))',
+    "data"
+  ))
+  expect_equal(sb_title_args(specs)$v, "all")
+  expect_equal(sb_title_args(specs, list(v = character()))$v, "none")
+  expect_equal(sb_title_args(specs, list(v = c("W1", "W3")))$v, "W1, W3")
+  expect_equal(
+    sb_title_args(specs, list(v = c("W1", "W2", "W3", "W4")))$v,
+    "W1, W2, W3 +1 more"
+  )
+  # A pick the choices no longer hold does not count.
+  expect_equal(sb_title_args(specs, list(v = c("W1", "gone")))$v, "W1")
 })
 
 
