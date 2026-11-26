@@ -517,10 +517,12 @@ sb_slot_specs <- function(specs, values, slot_args, data = NULL,
     }
     v <- cb_value(s, values)
     label <- cb_label(s)
+    label_off <- c(cb_label_off(s))
     kind <- sb_slot_kind(s)
     if (identical(kind, "flag")) {
       out[[s$name]] <- list(
-        kind = "flag", value = isTRUE(as.logical(v)[[1L]]), label = label
+        kind = "flag", value = isTRUE(as.logical(v)[[1L]]), label = label,
+        label_off = label_off
       )
     } else if (kind %in% c("select", "multi")) {
       choices <- sb_narrow_choices(s$choices, listed[[s$name]], v)
@@ -532,13 +534,15 @@ sb_slot_specs <- function(specs, values, slot_args, data = NULL,
         # as.list(): one pick must ship as a one-element array.
         selected = if (identical(kind, "multi")) as.list(sel) else
           if (length(sel)) sel[[1L]] else "",
-        label = label
+        label = label,
+        label_off = label_off
       )
     } else if (identical(kind, "number")) {
       rec <- list(
         kind = "number",
         value = suppressWarnings(as.numeric(v)[[1L]]),
-        label = label
+        label = label,
+        label_off = label_off
       )
       # Absent limits are left out, not sent as null: the field would read
       # "null" as its limit.
@@ -549,7 +553,8 @@ sb_slot_specs <- function(specs, values, slot_args, data = NULL,
       }
       out[[s$name]] <- rec
     } else if (identical(kind, "text")) {
-      rec <- list(kind = "text", value = as.character(v)[[1L]], label = label)
+      rec <- list(kind = "text", value = as.character(v)[[1L]], label = label,
+                  label_off = label_off)
       if (!is.null(s$placeholder) && nzchar(s$placeholder)) {
         rec$placeholder <- as.character(s$placeholder)[[1L]]
       }
@@ -618,6 +623,23 @@ sb_sentence_ui <- function(templates, specs, values, data, slot_input,
   args <- sb_title_args(specs, values)
   slots <- sb_slot_specs(specs, values, slot_args, data, listed)
 
+  # What a word says on hover and to a screen reader. A checkbox's word is
+  # its label, so a screen reader hears the label alone. Any other word is a
+  # value, read out with the label it is the value of.
+  word_title <- function(arg) paste("Change", slots[[arg]]$label)
+  word_aria <- function(arg, text) {
+    s <- slots[[arg]]
+    if (identical(s$kind, "flag")) s$label else paste0(s$label, ": ", text)
+  }
+  # The chip is named by label_off; without one it reads as it always has.
+  offer_title <- function(arg) {
+    spec <- Find(function(x) identical(x$name, arg), specs)
+    if (isTRUE(attr(cb_label_off(spec), "own"))) {
+      return(slots[[arg]]$label_off)
+    }
+    paste("Set", tolower(slots[[arg]]$label))
+  }
+
   paint <- function(tier) {
     cls <- paste0("blockr-script-sentence__", tier)
     template <- templates[[tier]]
@@ -647,7 +669,8 @@ sb_sentence_ui <- function(templates, specs, values, data, slot_input,
         `data-slot-arg` = p$arg,
         `data-slot-by` = sb_or(p$by, "name"),
         `data-slot-kind` = slots[[p$arg]]$kind,
-        title = paste("Change", slots[[p$arg]]$label),
+        title = word_title(p$arg),
+        `aria-label` = word_aria(p$arg, p$text),
         p$text,
         .noWS = "outside"
       )))
@@ -658,8 +681,9 @@ sb_sentence_ui <- function(templates, specs, values, data, slot_input,
         role = "button", tabindex = "0",
         `data-slot-arg` = key,
         `data-slot-kind` = slots[[key]]$kind,
-        title = paste("Set", tolower(slots[[key]]$label)),
-        paste0("+ ", slots[[key]]$label),
+        title = offer_title(key),
+        `aria-label` = slots[[key]]$label_off,
+        paste0("+ ", slots[[key]]$label_off),
         .noWS = "outside"
       )))
     }

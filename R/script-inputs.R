@@ -31,7 +31,7 @@ CB_VALUE_CALLS <- c("c", "factor", "as.Date")
 
 #' Annotation keys accepted after `#|`
 #' @noRd
-CB_ANN_KEYS <- c("label", "min", "max", "step", "placeholder")
+CB_ANN_KEYS <- c("label", "label_off", "min", "max", "step", "placeholder")
 
 #' The gutter glyph naming each widget
 #'
@@ -688,6 +688,23 @@ cb_label <- function(spec) {
   }
   label <- gsub("[._]", " ", spec$name)
   paste0(toupper(substr(label, 1L, 1L)), substring(label, 2L))
+}
+
+
+#' A control's label while it is off: the `#|` label_off, else `cb_label()`
+#'
+#' Off is a checkbox set to `FALSE`, or any control whose value is empty, so
+#' that its clause in the sentence drops and it is offered as a `+` chip.
+#' `label_off` is the chip's text: `+ Add all patients column` where `label`
+#' says `including all patients column`.
+#'
+#' @param spec A spec record.
+#' @return The label, and in the attribute `own` whether the script wrote one.
+#' @noRd
+cb_label_off <- function(spec) {
+  lab <- spec$label_off
+  own <- is.character(lab) && length(lab) == 1L && !is.na(lab) && nzchar(lab)
+  structure(if (own) lab else cb_label(spec), own = own)
 }
 
 
