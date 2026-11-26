@@ -405,3 +405,20 @@ test_that("a word with nothing to pick is plain text and its control stays in th
     args = list(`...args` = list(data = shiny::reactive(datasets::iris)))
   )
 })
+
+test_that("a line break next to a dropped clause leaves no stray line", {
+  d <- data.frame(v = 1)
+  txt <- function(p) paste0(vapply(p, function(x) x$text, ""), collapse = "")
+  tpl <- "A[ by {@x}]\\n[B {@y}]"
+
+  second <- title_template_parts(tpl, d, list(x = "g", y = NULL))
+  expect_equal(txt(second), "A by g")
+  expect_equal(attr(second, "offers"), "y")
+
+  first <- title_template_parts("[A {@x}]\\n[B {@y}]", d,
+                                list(x = NULL, y = "h"))
+  expect_equal(txt(first), "B h")
+
+  both <- title_template_parts(tpl, d, list(x = "g", y = "h"))
+  expect_equal(txt(both), "A by g\nB h")
+})

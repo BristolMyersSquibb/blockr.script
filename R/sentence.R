@@ -122,6 +122,20 @@ resolve_template_chunk <- function(text, data, args) {
 
 # The pieces of a whole template, with the arguments whose clause dropped as
 # the `offers` attribute.
+# A break at the start or end of the sentence has nothing on one side of it:
+# its clause dropped, as in "[a {@x}]\n[b {@y}]" with `y` unset. Left in, it
+# pushes the offers onto a line of their own.
+tt_trim_breaks <- function(parts) {
+  n <- length(parts)
+  if (n && is.null(parts[[n]]$arg)) {
+    parts[[n]]$text <- sub("[[:space:]]*\n[[:space:]]*$", "", parts[[n]]$text)
+  }
+  if (length(parts) && is.null(parts[[1L]]$arg)) {
+    parts[[1L]]$text <- sub("^[[:space:]]*\n[[:space:]]*", "", parts[[1L]]$text)
+  }
+  Filter(function(p) !is.null(p$arg) || nzchar(p$text), parts)
+}
+
 title_template_parts <- function(template, data, args = list()) {
   template <- tt_line_breaks(as.character(template)[[1L]])
   if (!length(template) || is.na(template) || !nzchar(template)) {
@@ -153,6 +167,7 @@ title_template_parts <- function(template, data, args = list()) {
       merged <- c(merged, list(p))
     }
   }
+  merged <- tt_trim_breaks(merged)
   # An argument named twice, once in a clause that stayed, is not on offer.
   kept <- vapply(
     merged, function(p) if (is.null(p$arg)) NA_character_ else p$arg,
