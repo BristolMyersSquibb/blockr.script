@@ -618,8 +618,13 @@
   white-space: pre-line;
 }
 
+/* Subtitle and caption have fixed line heights, 20px and 18px, the same
+   with or without a "+" chip: the chip below is 16px and fits inside either
+   line. blockr.viz sets the same values (inst/css/frame.css, gear.css); both
+   copies are meant to move to blockr.ui, next to .blockr-slot. */
 .blockr-script-sentence__subtitle {
   font-size: var(--blockr-font-size-sm, 0.8125rem);
+  line-height: 20px;
   color: var(--blockr-color-text-muted, #6b7280);
   margin-top: 1px;
   white-space: pre-line;
@@ -627,6 +632,7 @@
 
 .blockr-script-sentence__caption {
   font-size: var(--blockr-font-size-xs, 0.75rem);
+  line-height: 18px;
   color: var(--blockr-color-text-muted, #6b7280);
   margin-top: 4px;
   white-space: pre-line;
@@ -642,15 +648,13 @@
   border: 1px dashed var(--blockr-color-border-strong, #d1d5db);
   border-radius: var(--blockr-radius-sm, 4px);
   font-size: var(--blockr-font-size-xs, 0.75rem);
-  line-height: 1.5;
+  box-sizing: border-box;
+  height: 16px;
+  line-height: 14px;
   color: var(--blockr-color-text-secondary, #6b7280);
   cursor: pointer;
   white-space: nowrap;
-  vertical-align: 1px;
-}
-
-.blockr-script-sentence :is(.blockr-script-sentence__subtitle, .blockr-script-sentence__caption):has(.blockr-slot-offer) {
-  line-height: 2.25;
+  vertical-align: -1px;
 }
 
 .blockr-script-sentence .blockr-slot-offer:hover,
