@@ -132,7 +132,21 @@ serious <- FALSE  #| label = "serious events only"
 \verb{\{@arg\}} prints a control's value and makes the word clickable: a select
 opens its list, a number or text becomes a field, a checkbox toggles. A
 clause in \verb{[ ... ]} leaves when its value is empty, and its control is
-offered as a \code{+ label} chip instead. \code{{n}}, \code{{label(col)}} and \code{{col}} read
+offered as a \code{+ label} chip instead.
+
+\code{label_off} gives the chip its own text. A checkbox's word is its label, so
+\code{label} can say what is shown and \code{label_off} what a click adds:
+
+\if{html}{\out{<div class="sourceCode r">}}\preformatted{all_pts <- TRUE  #| label = "including all patients column", label_off = "Add all patients column"
+#| ui_subtitle: [\{@all_pts\}. ]
+}\if{html}{\out{</div>}}
+
+On, the subtitle reads \verb{including all patients column.}; off, it shows the
+chip \verb{+ Add all patients column}. A chip's tooltip and ARIA label carry the
+same text. Any control takes \code{label_off}, for the chip it gets when its
+value is empty.
+
+\code{{n}}, \code{{label(col)}} and \code{{col}} read
 the first input, as the data frame \code{\link[=sentence_data]{sentence_data()}} makes of it. The
 sentence sits in the row with the gear; the controls
 it names leave the grid, the others stay. A date can be named but stays a

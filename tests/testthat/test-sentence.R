@@ -160,6 +160,149 @@ test_that("a checkbox switched off leaves an offer chip", {
   expect_no_match(html, "serious only, ")
 })
 
+# ---- label_off ---------------------------------------------------------------
+
+flag_script <- function(value = "TRUE", tier = "ui_subtitle") {
+  c(
+    paste0(
+      "all_pts <- ", value, "  #| label = \"including all patients column\", ",
+      "label_off = \"Add all patients column\""
+    ),
+    paste0("#| ", tier, ": [{@all_pts}. ]"),
+    "data"
+  )
+}
+
+band_of <- function(lines, values = list()) {
+  html_of(sb_sentence_ui(
+    sb_sentence_templates(lines), specs_of(lines), values, iris, "s"
+  ))
+}
+
+test_that("label_off is read off the annotation and falls back to label", {
+  s <- specs_of(flag_script())[[1L]]
+  expect_identical(s$label_off, "Add all patients column")
+  expect_identical(c(cb_label_off(s)), "Add all patients column")
+  expect_true(attr(cb_label_off(s), "own"))
+  plain <- specs_of('serious <- TRUE  #| label = "serious only"\ndata')[[1L]]
+  expect_identical(c(cb_label_off(plain)), "serious only")
+  expect_false(attr(cb_label_off(plain), "own"))
+})
+
+test_that("on, a checkbox word says its label in text and ARIA label", {
+  html <- band_of(flag_script("TRUE"))
+  expect_match(
+    html,
+    paste0(
+      'class="blockr-slot"[^>]*data-slot-arg="all_pts"[^>]*',
+      'title="Change including all patients column" ',
+      'aria-label="including all patients column">',
+      "including all patients column</span>\\."
+    )
+  )
+  expect_no_match(html, "blockr-slot-offer")
+  expect_no_match(html, ">\\+ Add all patients column<")
+})
+
+test_that("off, the chip says label_off in text, tooltip and ARIA label", {
+  html <- band_of(flag_script("FALSE"))
+  expect_match(
+    html,
+    paste0(
+      'class="blockr-slot-offer"[^>]*data-slot-arg="all_pts"[^>]*',
+      'title="Add all patients column" ',
+      'aria-label="Add all patients column">',
+      "\\+ Add all patients column</span>"
+    )
+  )
+  expect_no_match(html, 'class="blockr-slot"')
+  expect_no_match(html, ">including all patients column<")
+})
+
+test_that("label_off works in the title, subtitle and ui_subtitle", {
+  for (tier in c("title", "subtitle", "ui_subtitle")) {
+    lines <- flag_script("TRUE", tier)
+    expect_match(band_of(lines), ">including all patients column</span>", info = tier)
+    expect_match(
+      band_of(lines, list(all_pts = FALSE)), ">\\+ Add all patients column</span>",
+      info = tier
+    )
+  }
+})
+
+test_that("any kind takes label_off for its chip", {
+  lines <- c(
+    'sites <- factor(character(0), levels = c("Basel", "Bern"))  #| label = "Sites", label_off = "Limit to sites"',
+    "#| subtitle: Subjects[ at {@sites}]",
+    "data"
+  )
+  off <- band_of(lines)
+  expect_match(off, 'title="Limit to sites" aria-label="Limit to sites">\\+ Limit to sites</span>')
+  on <- band_of(lines, list(sites = c("Basel", "Bern")))
+  expect_match(on, 'title="Change Sites" aria-label="Sites: Basel, Bern">Basel, Bern</span>')
+})
+
+test_that("without label_off a chip reads as before, with an ARIA label", {
+  html <- band_of(sentence_script, list(serious = FALSE))
+  expect_match(
+    html,
+    'title="Set serious only" aria-label="serious only">\\+ serious only</span>'
+  )
+})
+
+test_that("a value word carries its label in the ARIA label", {
+  html <- band_of(sentence_script)
+  expect_match(
+    html,
+    'title="Change Number of rows" aria-label="Number of rows: 3">3</span>'
+  )
+})
+
+test_that("the slot spec carries label_off", {
+  specs <- specs_of(flag_script())
+  slots <- sb_slot_specs(specs, list(), "all_pts")
+  expect_identical(slots$all_pts$label, "including all patients column")
+  expect_identical(slots$all_pts$label_off, "Add all patients column")
+})
+
+test_that("the text of the sentence reads label while on and drops while off", {
+  lines <- flag_script("TRUE", "subtitle")
+  tpl <- sb_sentence_templates(lines)
+  specs <- specs_of(lines)
+  on <- sb_resolved_titles(tpl, specs = specs, data = iris)
+  expect_identical(on$subtitle, "including all patients column.")
+  off <- sb_resolved_titles(tpl, specs = specs, values = list(all_pts = FALSE),
+                            data = iris)
+  expect_null(off$subtitle)
+})
+
+test_that("a click toggles between label and label_off in the block", {
+  block <- new_script_block(flag_script("TRUE"))
+  shiny::testServer(
+    blockr.core:::block_expr_server(block),
+    {
+      session$flushReact()
+      expect_no_match(html_of(output$dynamic_params$html), "cb_all_pts")
+      band <- html_of(output$sentence$html)
+      expect_match(band, ">including all patients column</span>")
+      expect_no_match(band, ">\\+ Add all patients column<")
+
+      session$setInputs(slot = list(arg = "all_pts", value = FALSE, nonce = 1))
+      expect_false(session$returned$state$values()$all_pts)
+      band <- html_of(output$sentence$html)
+      expect_match(band, ">\\+ Add all patients column</span>")
+      expect_no_match(band, ">including all patients column<")
+
+      session$setInputs(slot = list(arg = "all_pts", value = TRUE, nonce = 2))
+      expect_true(session$returned$state$values()$all_pts)
+      band <- html_of(output$sentence$html)
+      expect_match(band, ">including all patients column</span>")
+      expect_no_match(band, "blockr-slot-offer")
+    },
+    args = list(`...args` = list(data = shiny::reactive(datasets::iris)))
+  )
+})
+
 test_that("the slot specs say what each word opens", {
   specs <- specs_of(sentence_script)
   tpl <- sb_sentence_templates(sentence_script)

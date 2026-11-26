@@ -1,5 +1,9 @@
 # blockr.script 0.0.0.9000
 
+- A control takes `label_off` in its `#|` annotation: the text of the `+`
+  chip the sentence offers while the control is off (a checkbox set to
+  `FALSE`, or an empty value), in the chip's text, tooltip and ARIA label.
+  Every word carries an ARIA label.
 - `new_script_block()`: a block whose state is an R script. A top-level
   assignment of a plain value becomes a control on the block, and the
   exported code is the script with the current values written in. The
