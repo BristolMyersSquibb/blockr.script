@@ -34,7 +34,8 @@
 
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.0.0.9000" id="blockrscript-0009000">blockr.script 0.0.0.9000<a class="anchor" aria-label="anchor" href="#blockrscript-0009000"></a></h2>
-<ul><li>
+<ul><li>A control takes <code>label_off</code> in its <code>#|</code> annotation: the text of the <code>+</code> chip the sentence offers while the control is off (a checkbox set to <code>FALSE</code>, or an empty value), in the chip’s text, tooltip and ARIA label. Every word carries an ARIA label.</li>
+<li>
 <code><a href="../reference/new_script_block.html">new_script_block()</a></code>: a block whose state is an R script. A top-level assignment of a plain value becomes a control on the block, and the exported code is the script with the current values written in. The editor’s “Start from” menu offers starter scripts.</li>
 <li>
 <code><a href="../reference/new_prose_block.html">new_prose_block()</a></code>: markdown with inline R, as ‘Quarto’ writes it.</li>

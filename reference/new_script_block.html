@@ -164,7 +164,16 @@ sentence whose words are its controls, as blockr.viz's blocks do:</p>
 <p><code>{@arg}</code> prints a control's value and makes the word clickable: a select
 opens its list, a number or text becomes a field, a checkbox toggles. A
 clause in <code>[ ... ]</code> leaves when its value is empty, and its control is
-offered as a <code>+ label</code> chip instead. <code>{n}</code>, <code>{label(col)}</code> and <code>{col}</code> read
+offered as a <code>+ label</code> chip instead.</p>
+<p><code>label_off</code> gives the chip its own text. A checkbox's word is its label, so
+<code>label</code> can say what is shown and <code>label_off</code> what a click adds:</p>
+<p></p><div class="sourceCode r"><pre><code><span><span class="va">all_pts</span> <span class="op">&lt;-</span> <span class="cn">TRUE</span>  <span class="co">#| label = "including all patients column", label_off = "Add all patients column"</span></span>
+<span><span class="co">#| ui_subtitle: [{@all_pts}. ]</span></span></code></pre><p></p></div>
+<p>On, the subtitle reads <code>including all patients column.</code>; off, it shows the
+chip <code>+ Add all patients column</code>. A chip's tooltip and ARIA label carry the
+same text. Any control takes <code>label_off</code>, for the chip it gets when its
+value is empty.</p>
+<p><code>{n}</code>, <code>{label(col)}</code> and <code>{col}</code> read
 the first input, as the data frame <code><a href="sentence_data.html">sentence_data()</a></code> makes of it. The
 sentence sits in the row with the gear; the controls
 it names leave the grid, the others stay. A date can be named but stays a

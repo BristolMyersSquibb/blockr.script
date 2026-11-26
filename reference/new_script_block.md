@@ -145,8 +145,21 @@ sentence whose words are its controls, as blockr.viz's blocks do:
 `{@arg}` prints a control's value and makes the word clickable: a select
 opens its list, a number or text becomes a field, a checkbox toggles. A
 clause in `[ ... ]` leaves when its value is empty, and its control is
-offered as a `+ label` chip instead. `{n}`, `{label(col)}` and `{col}`
-read the first input, as the data frame
+offered as a `+ label` chip instead.
+
+`label_off` gives the chip its own text. A checkbox's word is its label,
+so `label` can say what is shown and `label_off` what a click adds:
+
+    all_pts <- TRUE  #| label = "including all patients column", label_off = "Add all patients column"
+    #| ui_subtitle: [{@all_pts}. ]
+
+On, the subtitle reads `including all patients column.`; off, it shows
+the chip `+ Add all patients column`. A chip's tooltip and ARIA label
+carry the same text. Any control takes `label_off`, for the chip it gets
+when its value is empty.
+
+`{n}`, `{label(col)}` and `{col}` read the first input, as the data
+frame
 [`sentence_data()`](https://bristolmyerssquibb.github.io/blockr.script/reference/sentence_data.md)
 makes of it. The sentence sits in the row with the gear; the controls it
 names leave the grid, the others stay. A date can be named but stays a
